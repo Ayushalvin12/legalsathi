@@ -1,0 +1,110 @@
+%% graph TD
+%%     subgraph Level2[Level-2 DFD: Retrieve Relevant Texts]
+%%         %% Inputs from Level-1
+%%         P2_2[2.0 Process Query]
+        
+%%         %% Subprocesses
+%%         P3_1[3.1 Encode Query Embedding]
+%%         P3_2[3.2 Search FAISS Index]
+%%         P3_3[3.3 Fetch Relevant Texts]
+        
+%%         %% Data Stores
+%%         D1_2[(D1 Legal Text Database)]
+%%         D2_2[(D2 Vector Database)]
+        
+%%         %% Outputs to Level-1
+%%         P4_2[4.0 Generate Response]
+%%         P2_3[2.0 Process Query]
+        
+%%         %% Data Flows
+%%         P2_2 -->|Query Embedding| P3_1
+%%         P3_1 -->|Encoded Query Embedding| P3_2
+%%         P3_2 ---|Access Embeddings| D2_2
+%%         P3_2 -->|Relevant Text IDs| P3_3
+%%         P3_3 ---|Access Texts| D1_2
+%%         P3_3 -->|Retrieved Texts| P4_2
+%%         P3_3 -->|Retrieved Texts| P2_3
+%%     end
+
+%% graph TD
+%%     subgraph Level2[Level-2 DFD: Retrieve Relevant Texts]
+%%         %% Inputs from Level-1
+%%         P2_2[2.0 Process Query]
+        
+%%         %% Subprocesses
+%%         P3_1[3.1 Encode Query Embedding]
+%%         P3_2[3.2 Search FAISS Index]
+%%         P3_3[3.3 Fetch Relevant Texts]
+        
+%%         %% Data Stores
+%%         D1_2[(D1 Legal Text Database)]
+%%         D2_2[(D2 Vector Database)]
+        
+%%         %% Outputs to Level-1
+%%         P4_2[4.0 Generate Response]
+        
+%%         %% Data Flows
+%%         P2_2 -->|Query Embedding| P3_1
+%%         P3_1 -->|Encoded Query Embedding| P3_2
+%%         P3_2 ---|Access Embeddings| D2_2
+%%         P3_2 -->|Relevant Text IDs| P3_3
+%%         P3_3 ---|Access Texts| D1_2
+%%         P3_3 -->|Retrieved Texts| P4_2
+%%     end
+
+graph TD
+    %% External Entities
+    U[User]
+    LDS[Legal Data Sources]
+    
+    %% Data Stores
+    D1[(D1 Legal Text Database)]
+    D2[(D2 Vector Database)]
+    
+    %% Level-1 Processes (for reference, not drawn as separate nodes)
+    %% P1: Preprocess Legal Texts
+    %% P2: Process Query
+    %% P3: Retrieve Relevant Texts
+    %% P4: Generate Response
+    
+    %% Level-2 Subprocesses for P1: Preprocess Legal Texts
+    P1_1[1.1 Extract Text]
+    P1_2[1.2 Clean Text]
+    P1_3[1.3 Generate Embeddings]
+    
+    %% Level-2 Subprocesses for P2: Process Query
+    P2_1[2.1 Validate Query]
+    P2_2[2.2 Encode Query Embedding]
+    
+    %% Level-2 Subprocesses for P3: Retrieve Relevant Texts
+    P3_1[3.1 Encode Query Embedding]
+    P3_2[3.2 Search FAISS Index]
+    P3_3[3.3 Fetch Relevant Texts]
+    
+    %% Level-2 Subprocesses for P4: Generate Response
+    P4_1[4.1 Format Retrieved Texts]
+    P4_2[4.2 Generate Guidance]
+    
+    %% Data Flows
+    %% P1 Subprocesses
+    LDS -->|Raw Legal Texts| P1_1
+    P1_1 -->|Extracted Texts| P1_2
+    P1_2 -->|Cleaned Texts| D1
+    P1_2 -->|Cleaned Texts| P1_3
+    P1_3 -->|Embeddings| D2
+    
+    %% P2 Subprocesses
+    U -->|Query| P2_1
+    P2_1 -->|Validated Query| P2_2
+    P2_2 -->|Query Embedding| P3_1
+    
+    %% P3 Subprocesses
+    P3_1 -->|Encoded Query Embedding| P3_2
+    P3_2 ---|Access Embeddings| D2
+    P3_2 -->|Relevant Text IDs| P3_3
+    P3_3 ---|Access Texts| D1
+    P3_3 -->|Retrieved Texts| P4_1
+    
+    %% P4 Subprocesses
+    P4_1 -->|Formatted Texts| P4_2
+    P4_2 -->|Guidance| Ux

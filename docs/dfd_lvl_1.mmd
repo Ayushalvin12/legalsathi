@@ -1,0 +1,48 @@
+graph TD
+    U[User]
+    LDS[Legal Data Sources]
+    P1[1.0 Preprocess Legal Texts]
+    P2[2.0 Process Query]
+    P3[3.0 Retrieve Relevant Texts]
+    P4[4.0 Generate Response]
+    D1[(D1 Legal Text Database)]
+    D2[(D2 Vector Database)]
+    LDS -->|Raw Legal Texts| P1
+    P1 -->|Cleaned Texts| D1
+    P1 -->|Embeddings| D2
+    U -->|Query| P2
+    P2 -->|Query Embedding| P3
+    P3 -->|Retrieved Texts| P4
+    P3 -->|Retrieved Texts| P2
+    P3 ---|Access Embeddings| D2
+    P4 -->|Guidance| U
+
+
+
+%% graph TD
+%%     subgraph Level1[Level-1 DFD: Detailed Data Flow]
+%%         %% External Entities
+%%         U[User]
+%%         LDS[Legal Data Sources]
+        
+%%         %% Processes
+%%         P1[1.0 Preprocess Legal Texts]
+%%         P2[2.0 Process Query]
+%%         P3[3.0 Retrieve Relevant Texts]
+%%         P4[4.0 Generate Response]
+        
+%%         %% Data Stores
+%%         D1[(D1 Legal Text Database)]
+%%         D2[(D2 Vector Database)]
+        
+%%         %% Data Flows
+%%         LDS -->|Raw Legal Texts| P1
+%%         P1 -->|Cleaned Texts| D1
+%%         P1 -->|Embeddings| D2
+%%         U -->|Query| P2
+%%         P2 -->|Query Embedding| P3
+%%         P3 -->|Retrieved Texts| P4
+%%         P3 ---|Access Embeddings| D2
+%%         P4 -->|Guidance| U
+%%     end
+
