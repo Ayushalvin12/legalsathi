@@ -1,0 +1,68 @@
+%% erDiagram
+%%     USER ||--o{ QUERY : submits
+%%     QUERY ||--|| GUIDANCE : generates
+%%     GUIDANCE }o--o{ LEGAL_TEXT : uses
+%%     LEGAL_TEXT ||--|| EMBEDDING : has
+
+%%     USER {
+%%         string user_id PK
+%%         string username
+%%     }
+%%     QUERY {
+%%         string query_id PK
+%%         string content
+%%         string user_id FK
+%%     }
+%%     GUIDANCE {
+%%         string guidance_id PK
+%%         string content
+%%         string query_id FK
+%%     }
+%%     LEGAL_TEXT {
+%%         string text_id PK
+%%         string content
+%%         string source
+%%     }
+%%     EMBEDDING {
+%%         string embedding_id PK
+%%         string vector
+%%         string text_id FK
+%%     }
+
+erDiagram
+    USER ||--o{ QUERY : submits
+    QUERY ||--|| GUIDANCE : generates
+    GUIDANCE ||--o{ GUIDANCE_LEGAL_TEXT : references
+    LEGAL_TEXT ||--o{ GUIDANCE_LEGAL_TEXT : referenced_by
+    LEGAL_TEXT ||--|| EMBEDDING : has
+
+    USER {
+        string user_id PK
+        string username
+    }
+    QUERY {
+        string query_id PK
+        string content
+        string user_id FK
+        datetime timestamp
+    }
+    GUIDANCE {
+        string guidance_id PK
+        string content
+        string query_id FK
+    }
+    GUIDANCE_LEGAL_TEXT {
+        string guidance_id PK,FK
+        string text_id PK,FK
+    }
+    LEGAL_TEXT {
+        string text_id PK
+        string content
+        string source
+        string category
+    }
+    EMBEDDING {
+        string embedding_id PK
+        string vector
+        string text_id FK
+    }

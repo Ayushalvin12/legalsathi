@@ -1,0 +1,9 @@
+graph TD
+    User -->|Submits| Query
+    User -->|Views| Guidance
+    User -->|Views| Query_History
+    Administrator -->|Uploads| Legal_Texts
+    Administrator -->|Preprocesses| Texts
+    Query -->|Includes| Validate_Query
+    Guidance -->|Includes| Retrieve_Relevant_Texts
+    Guidance -->|Includes| Generate_Guidance
