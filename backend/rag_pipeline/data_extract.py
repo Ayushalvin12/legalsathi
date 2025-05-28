@@ -3,8 +3,6 @@ import re
 import json
 
 pdf_path = "../data/raw/civil_code.pdf"
-
-# add an extraction folder inside backend before running the code
 output_path = "extraction/civil_code_flat_sections.json"
 
 metadata = {}
@@ -27,7 +25,7 @@ current_subsection = None
 part_pattern = re.compile(r'^Part\s*[--]?\s*(\d+)', re.IGNORECASE)
 chapter_pattern = re.compile(r'^Chapter\s*[--]?\s*(\d+)', re.IGNORECASE)
 section_pattern = re.compile(r'^(\d+)\.\s*([^:]+):\s*(.*)?')
-subsection_pattern = re.compile(r'^\((\d+)\)\s*(.*)')
+subsection_pattern = re.compile(r'^\((\d+)\)\s+(.*)$')
 subclause_pattern = re.compile(r'^\(([a-z])\)\s*(.*)')
 metadata_pattern = re.compile(r'^(Date of Authentication|Act number):\s*(.+)$', re.IGNORECASE)
 preamble_start_pattern = re.compile(r'^Preamble:', re.IGNORECASE)
@@ -130,10 +128,23 @@ try:
                 flush_section()
                 current_section = f"{match.group(1)}."
                 current_section_title = match.group(2).strip()
-                current_description = match.group(3).strip() if match.group(3) else ""
+                raw_text = match.group(3).strip() if match.group(3) else ""
+                current_description = ""
                 current_articles = []
                 current_subsections = []
                 current_subsection = None
+
+                # If section text begins with a subsection like (1), treat it as a subsection instead
+                first_sub_match = subsection_pattern.match(raw_text)
+                if first_sub_match:
+                    current_subsection = {
+                        "Sub-sectionID": f"({first_sub_match.group(1)})",
+                        "Description": first_sub_match.group(2).strip(),
+                        "Articles": []
+                    }
+                    current_subsections.append(current_subsection)
+                else:
+                    current_description = raw_text
                 continue
 
             # Sub-section
