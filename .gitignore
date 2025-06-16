@@ -1,2 +1,5 @@
 /venv
 /backend/extraction
+/backend/chunks
+/backend/embeddings
+/.vscode
