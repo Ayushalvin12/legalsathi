@@ -3,6 +3,4 @@
 /.vscode
 /data/raw
 /backend/rag_pipeline/extraction/__pycache__
-/backend/chunks
-/backend/embeddings
 
