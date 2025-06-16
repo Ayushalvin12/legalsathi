@@ -1,2 +1,5 @@
 /venv
 /backend/extraction
+/.vscode
+/data/raw
+/backend/rag_pipeline/extraction/__pycache__
