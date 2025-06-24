@@ -3,4 +3,5 @@
 /.vscode
 /data/raw
 /backend/rag_pipeline/extraction/__pycache__
+/backend/.env
 
