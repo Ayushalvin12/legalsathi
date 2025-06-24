@@ -1,10 +1,14 @@
 import json
+import os
 import logging
 import time
 from tqdm import tqdm
+from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance
 import google.generativeai as genai
+
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -75,9 +79,9 @@ def upload_chunks(client, collection_name, chunks, batch_size=100, max_retries=3
 # Main pipeline
 def main():
     chunked_path = "./extraction/criminal_code_chunked_with_all.json" 
-    gemini_api_key = "AIzaSyAmiSB0MWbP7cu0rzOz-Bu1eXFcgbgpEyQ"  
-    qdrant_api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.XYLxnqdnEgQWlhek0do8deB-UcxcxjYPeeiB5tbeyLQ"
-    qdrant_url = "https://d55c959d-3f9d-4589-bc1c-7703aac1e9bc.europe-west3-0.gcp.cloud.qdrant.io:6333"  
+    gemini_api_key = os.getenv("GEMINI_API_KEY") 
+    qdrant_api_key = os.getenv("QDRANT_API_KEY")
+    qdrant_url = os.getenv("QDRANT_URL")
     collection = "test_criminal_civil_code"
 
     try:
