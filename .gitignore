@@ -1,7 +1,22 @@
-/venv
-/backend/extraction
-/.vscode
-/data/raw
-/backend/rag_pipeline/extraction/__pycache__
-/backend/.env
+# Virtual environment
+venv/
+
+# Python bytecode
+**/__pycache__/
+*.py[cod]
+
+# VSCode settings
+.vscode/
+
+# Environment variables
+*.env
+.env
+
+# Data files
+data/raw/
+
+# Logs
+backend/logs/
+backend/extraction/
+
 
