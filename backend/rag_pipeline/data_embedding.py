@@ -1,9 +1,9 @@
 import json
 import os
-import logging
 import time
 from tqdm import tqdm
 from dotenv import load_dotenv
+from logger_config import get_logger
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance
 import google.generativeai as genai
@@ -11,8 +11,7 @@ import google.generativeai as genai
 load_dotenv()
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Load chunks from JSON
 def load_chunks(path):

@@ -2,14 +2,13 @@ import os
 import google.generativeai as genai
 from qdrant_client import QdrantClient
 from dotenv import load_dotenv
+from logger_config import get_logger
 import requests
-import logging
 
 load_dotenv()
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # Configurations
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -19,9 +18,6 @@ COLLECTION_NAME = "test_criminal_civil_code"
 OLLAMA_MODEL = "tinyllama:1.1b"
 TOP_K = 2
 
-# Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Setup Gemini for embedding
 def setup_gemini():
@@ -29,6 +25,7 @@ def setup_gemini():
 
 # Embed query using Gemini embedding-001
 def embed_query(query):
+    logger.info("Generating embedding for the user query...")
     response = genai.embed_content(
         model="models/embedding-001",
         content=query,
@@ -41,12 +38,19 @@ def connect_qdrant():
     return QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
 def retrieve_context(client, query_vector, top_k=TOP_K):
-    return client.search(
-        collection_name=COLLECTION_NAME,
-        query_vector=query_vector,
-        limit=top_k,
-        with_payload=True,
-    )
+    logger.info(f"Retrieving the top: {top_k} context")
+    try:
+        results = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_vector,
+            limit=top_k,
+            with_payload=True,
+        )
+        logger.debug(f"Top results: {results}")
+        return results
+    except Exception as e:
+        logger.error(f"Error during retrieval: {e}")
+
 
 # Generate response using Ollama (local LLM)
 def generate_with_ollama(prompt, model=OLLAMA_MODEL):
@@ -59,6 +63,7 @@ def generate_with_ollama(prompt, model=OLLAMA_MODEL):
     if response.status_code == 200:
         return response.json()['response'].strip()
     else:
+        logger.error(f"Ollama error: {response.text}")
         raise RuntimeError(f"Ollama error: {response.text}")
 
 # Generate answer using Ollama and context
@@ -98,15 +103,15 @@ def main():
         results = retrieve_context(client, query_vector)
 
         if not results:
-            print("❌ No relevant documents found.")
+            logger.info("❌ No relevant documents found.")
             continue
 
         logger.info("Generating answer using Ollama model...")
         answer = generate_answer(results, user_query)
 
-        print("\n🧠 Ollama's Answer:\n")
-        print(answer)
-        print("\n" + "=" * 80 + "\n")
+        logger.info("\n🧠 Ollama's Answer:\n")
+        logger.info(answer)
+        logger.info("\n" + "=" * 80 + "\n")
 
 if __name__ == "__main__":
     main()
