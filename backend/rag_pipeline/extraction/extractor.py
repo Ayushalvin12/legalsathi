@@ -1,20 +1,20 @@
 import pdfplumber
 import json
 import os
+import traceback
 from patterns import (
     part_pattern, chapter_pattern, section_pattern, subsection_pattern,
     subclause_pattern, metadata_pattern, preamble_start_pattern,
     page_number_pattern, section_like_pattern
 )
 
-# hardcoded for now. will need to change 
-pdf_path = r'E:\legal_sathi\data\raw\criminal-code-nepal.pdf'
-output_path = 'extraction/criminal_code_flat_sections.json'
-
-metadata = []
-sections = []
+# File paths
+pdf_path = r'E:\legal_sathi\data\raw\criminal-code-nepal-new.pdf'
+output_path = 'extraction/criminial_code_flat_sections.json'
 
 # State variables
+metadata = []
+sections = []
 current_part = current_part_title = None
 current_chapter = current_chapter_title = None
 current_section = current_section_title = ''
@@ -28,13 +28,14 @@ awaiting_title_completion = False
 in_subsection_description = False
 in_explanation = False
 last_subsection_number = 0
+in_article_context = False
 
 def reset_state(level):
     global current_part_title, current_chapter, current_chapter_title
     global current_section, current_section_title, current_description
     global current_articles, subsections, current_subsection
     global title_buffer, awaiting_title_completion, in_subsection_description
-    global in_explanation, last_subsection_number
+    global in_explanation, last_subsection_number, in_article_context
 
     if level in ['part', 'chapter', 'section']:
         current_section = None
@@ -48,6 +49,7 @@ def reset_state(level):
         in_subsection_description = False
         in_explanation = False
         last_subsection_number = 0
+        in_article_context = False
     if level in ['part', 'chapter']:
         current_chapter = None
         current_chapter_title = ''
@@ -79,7 +81,6 @@ def write_output(path, data):
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# endpoint needs to be setup (which takes file or files) 
 try:
     if not os.path.exists(pdf_path):
         raise FileNotFoundError(f'PDF file not found: {pdf_path}')
@@ -95,7 +96,7 @@ try:
                 continue
 
             if in_table_of_contents:
-                if preamble_start_pattern.match(line) or part_pattern.match(line):
+                if preamble_start_pattern.match(line) or part_pattern.match(line) or chapter_pattern.match(line):
                     in_table_of_contents = False
                 else:
                     continue
@@ -109,7 +110,7 @@ try:
                 preamble_lines.append(line)
                 continue
             elif in_preamble:
-                if part_pattern.match(line):
+                if part_pattern.match(line) or chapter_pattern.match(line):
                     sections.append({
                         'PartID': None, 'PartTitle': None, 'ChapterID': None,
                         'ChapterTitle': None, 'SectionID': 'Preamble',
@@ -192,22 +193,54 @@ try:
                 awaiting_title_completion = False
                 in_subsection_description = True
                 in_explanation = False
+                in_article_context = True
                 continue
 
-            if 'Explanation:' in line and current_subsection and current_subsection['Articles']:
+            # Explanation
+            if 'Explanation:' in line:
                 in_explanation = True
-                current_subsection['Articles'][-1]['Description'] += ' ' + line.strip()
+                in_article_context = False
+                explanation_text = line.strip()
+                if current_subsection and current_subsection.get('Articles'):
+                    current_subsection['Articles'][-1]['Description'] += ' ' + explanation_text
+                elif current_articles:
+                    current_articles[-1]['Description'] += ' ' + explanation_text
+                elif current_subsection:
+                    current_subsection['Description'] += ' ' + explanation_text
+                elif current_section:
+                    current_description += ' ' + explanation_text
                 continue
 
+            # Sub-section or bullet point
             if match := subsection_pattern.match(line):
                 subsection_number = int(match.group(1))
-                if in_explanation and subsection_number <= last_subsection_number:
-                    current_subsection['Articles'][-1]['Description'] += ' ' + line
+                subsection_text = match.group(2).strip()
+
+                if in_explanation:
+                    # Stop explanation if this is long or looks like a new sub-section
+                    if len(subsection_text.split()) > 12 or subsection_text[0].isupper():
+                        in_explanation = False
+                    else:
+                        if current_subsection and current_subsection.get('Articles'):
+                            current_subsection['Articles'][-1]['Description'] += f' ({subsection_number}) {subsection_text}'
+                        elif current_articles:
+                            current_articles[-1]['Description'] += f' ({subsection_number}) {subsection_text}'
+                        elif current_subsection:
+                            current_subsection['Description'] += f' ({subsection_number}) {subsection_text}'
+                        continue
+
+                # ➤ NEW: If we're in an article, these are just nested points
+                if in_article_context and current_articles:
+                    current_articles[-1]['Description'] += f' ({subsection_number}) {subsection_text}'
                     continue
+
+                # ➤ Otherwise start a real new sub-section
+                in_explanation = False
+                in_article_context = False
                 if subsection_number > last_subsection_number:
                     current_subsection = {
                         'Sub-sectionID': f'({match.group(1)})',
-                        'Description': match.group(2).strip(),
+                        'Description': subsection_text,
                         'Articles': []
                     }
                     subsections.append(current_subsection)
@@ -226,16 +259,19 @@ try:
                 reset_state('section')
                 continue
 
-            if chapter_pattern.match(line):
-                flush_section()
-                reset_state('chapter')
-                current_chapter = f'Chapter-{chapter_pattern.match(line).group(1)}'
-                next_is_chapter_title = True
+            # Continuation lines
+            if in_explanation:
+                if current_subsection and current_subsection.get('Articles'):
+                    current_subsection['Articles'][-1]['Description'] += ' ' + line
+                elif current_articles:
+                    current_articles[-1]['Description'] += ' ' + line
+                elif current_subsection:
+                    current_subsection['Description'] += ' ' + line
+                elif current_section:
+                    current_description += ' ' + line
                 continue
 
-            if in_explanation and current_subsection and current_subsection['Articles']:
-                current_subsection['Articles'][-1]['Description'] += ' ' + line
-            elif current_subsection and current_subsection.get('Articles'):
+            if current_subsection and current_subsection.get('Articles'):
                 current_subsection['Articles'][-1]['Description'] += ' ' + line
             elif current_subsection:
                 current_subsection['Description'] += ' ' + line
@@ -251,3 +287,4 @@ try:
 
 except Exception as e:
     print(f'❌ Error: {str(e)}')
+    traceback.print_exc()
