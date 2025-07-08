@@ -3,14 +3,14 @@ import os
 import traceback
 from patterns import (
     part_pattern, chapter_pattern, section_pattern, subsection_pattern,
-    subclause_pattern, metadata_pattern, preamble_start_pattern,
+    subclause_pattern, metadata_pattern, metadata_key_pattern, preamble_start_pattern,
     page_number_pattern, section_like_pattern
 )
 from utils import reset_state, flush_section, is_title_complete, write_output
 
 # File paths
-pdf_path = r'E:\legal_sathi\data\raw\electronic-act.pdf'
-output_path = 'extraction/electronic_act_extracted.json'
+pdf_path = r'E:\legal_sathi\data\raw\civil_code_debug.pdf'
+output_path = 'extraction/test_debug.json'
 
 # State dictionary
 state = {
@@ -34,6 +34,7 @@ state = {
     'last_subsection_number': 0,
     'in_clause_context': False
 }
+current_meta_key = None
 
 try:
     if not os.path.exists(pdf_path):
@@ -49,15 +50,28 @@ try:
             if not line or page_number_pattern.match(line):
                 continue
 
+            # Check for metadata key lines (no value yet)
+            if key_match := metadata_key_pattern.match(line):
+                current_meta_key = key_match.group(1)
+                continue
+
+            # If previous line was a metadata key, this is its value
+            if current_meta_key:
+                state['metadata'].append({
+                    current_meta_key.replace(' ', '_').lower(): line.strip()
+                })
+                current_meta_key = None
+                continue
+
+            if meta := metadata_pattern.match(line):
+                state['metadata'].append({meta.group(1).replace(' ', '_').lower(): meta.group(2).strip()})
+                continue
+
             if state['in_table_of_contents']:
                 if preamble_start_pattern.match(line) or part_pattern.match(line) or chapter_pattern.match(line):
                     state['in_table_of_contents'] = False
                 else:
                     continue
-
-            if meta := metadata_pattern.match(line):
-                state['metadata'].append({meta.group(1).replace(' ', '_').lower(): meta.group(2).strip()})
-                continue
 
             if preamble_start_pattern.match(line):
                 in_preamble = True
