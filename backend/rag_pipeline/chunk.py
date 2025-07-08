@@ -2,8 +2,8 @@ import json
 import os
 import uuid
 
-input_path = "extraction/criminal_code_flat_sections.json"
-output_path = "chunks/criminal_code_chunked_with_all.json"
+input_path = "extraction/criminal-code-flat-sections.json"
+output_path = "chunks/criminal_code_chunked_with_metadata.json"
 
 def chunk_legal_sections(input_file, output_file):
     with open(input_file, "r", encoding="utf-8") as f:
@@ -38,20 +38,20 @@ def chunk_legal_sections(input_file, output_file):
         if section.get("Description", "").strip():
             content_parts.append(section["Description"].strip())
 
-        for article in section.get("Articles", []):
-            art_id = article.get("ArticleID", "NA").strip("()")
-            if article.get("Description", "").strip():
-                content_parts.append(f"Article {art_id}: {article['Description'].strip()}")
+        for clause in section.get("Clauses", []):
+            clause_id = clause.get("ClauseID", "NA").strip("()")
+            if clause.get("Description", "").strip():
+                content_parts.append(f"Clause {clause_id}: {clause['Description'].strip()}")
 
         for sub in section.get("Sub-sections", []):
             sub_id = sub.get("Sub-sectionID", "NA").strip("()")
             if sub.get("Description", "").strip():
                 content_parts.append(f"Sub-section {sub_id}: {sub['Description'].strip()}")
 
-            for article in sub.get("Articles", []):
-                art_id = article.get("ArticleID", "NA").strip("()")
-                if article.get("Description", "").strip():
-                    content_parts.append(f"Article {art_id}: {article['Description'].strip()}")
+            for clause in sub.get("Clauses", []):
+                clause_id = clause.get("ClauseID", "NA").strip("()")
+                if clause.get("Description", "").strip():
+                    content_parts.append(f"clause {clause_id}: {clause['Description'].strip()}")
 
         if content_parts:
             chunks.append({
