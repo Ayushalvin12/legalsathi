@@ -4,7 +4,7 @@ import requests
 import google.generativeai as genai
 from qdrant_client import QdrantClient
 from dotenv import load_dotenv
-from logger_config import get_logger
+from rag_pipeline.logger_config import get_logger
 from langchain.memory import ConversationSummaryBufferMemory
 from langchain.schema import messages_from_dict, messages_to_dict
 from langchain_community.llms import Ollama
@@ -19,6 +19,8 @@ from langchain_core.outputs import LLMResult
 from transformers import pipeline
 
 
+from db import connect_db, get_or_create_user,create_conversation, insert_message
+
 # === Load environment & setup logger ===
 load_dotenv()
 logger = get_logger()
@@ -28,29 +30,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
 COLLECTION_NAME = "criminal_code"
-OLLAMA_MODEL = "llama3.1:latest"
+OLLAMA_MODEL = "tinyllama:1.1b"
 TOP_K = 3
-
-
-#== Custom wrapper for BART summarizer ==
-class HuggingFaceLangChainLLM(BaseLLM):
-    def __init__(self):
-        self.pipe = pipeline("summarization", model="facebook/bart-large-cnn")
-
-    def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
-        result = self.pipe(prompt, max_length=100, min_length=30, do_sample=False)
-        return result[0]['summary_text']
-
-    def _generate(self, prompts: List[str], stop: Optional[List[str]] = None) -> LLMResult:
-        generations = []
-        for prompt in prompts:
-            summary = self._call(prompt, stop=stop)
-            generations.append([{"text": summary}])
-        return LLMResult(generations=generations)
-
-    @property
-    def _llm_type(self) -> str:
-        return "huggingface-summarizer"
 
 # == Token counter ==
 tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -68,8 +49,6 @@ args = parser.parse_args()
 
 if args.summarizer == "llama":
     summarizer_llm = Ollama(model=OLLAMA_MODEL)
-else:
-    summarizer_llm = HuggingFaceLangChainLLM()
 
 # === LangChain memory ===
 memory = ConversationSummaryBufferMemory(
@@ -181,12 +160,23 @@ def save_memory_as_json(memory, log_dir="logs"):
     if summary_text:
         print(f"✅ Summary saved to: {summary_path}")
 
+# === Memory + DB Persistence ===
+def save_turn_to_memory_and_db(memory, conn, conversation_id, user_input, assistant_output):
+    memory.chat_memory.add_user_message(user_input)
+    memory.chat_memory.add_ai_message(assistant_output)
+
+    insert_message(conn, conversation_id, "user", user_input)
+    insert_message(conn, conversation_id, "assistant", assistant_output)
 
 
 # === Main RAG Chat Loop ===
 def main():
     setup_gemini()
     client = connect_qdrant()
+    conn = connect_db()
+
+    user_id = get_or_create_user(conn, "test-user")
+    conversation_id = create_conversation(conn, user_id)
 
     print("🧠 Multi-turn Legal Chat (LLaMA 3.1 + Qdrant + LangChain Memory)")
     while True:
@@ -212,15 +202,15 @@ def main():
 
         # Display and update memory
         print(f"\n LLaMA: {answer}")
+        save_turn_to_memory_and_db(memory, conn, conversation_id, user_query, answer)
 
-        memory.chat_memory.add_user_message(user_query)
-        memory.chat_memory.add_ai_message(answer)
         logger.info("\n Ollama's Answer:\n")
         logger.info(answer)
         logger.info("\n" + "=" * 80 + "\n")
 
         logger.info("Saved to a file")
     save_memory_as_json(memory)
+    conn.close()
 
 if __name__ == "__main__":
     main()
