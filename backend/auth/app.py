@@ -61,17 +61,17 @@ async def get_current_user(request: Request):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     
     with get_db_cursor() as cursor:
-        cursor.execute("SELECT id, email, name, role, created_at, access_token, refresh_token FROM testuser WHERE email = %s", (user_info['email'],))
+        cursor.execute("SELECT id, name, email, user_role,  access_token, refresh_token, created_at FROM users WHERE email = %s", (user_info['email'],))
         user = cursor.fetchone()
         if not user:
             cursor.execute(
-                "INSERT INTO testuser (email, name, role, access_token, refresh_token) VALUES (%s, %s, %s, %s, %s) RETURNING id, email, name, role, created_at, access_token, refresh_token",
-                (user_info['email'], user_info['name'], 'client', user_info.get('access_token'), user_info.get('refresh_token'))
+                "INSERT INTO users (name, email, user_role, access_token, refresh_token created_at) VALUES (%s, %s, %s, %s, %s) RETURNING id, name, email, user_role,  access_token, refresh_token, created_at",
+                (user_info['name'], user_info['email'], user_info['user_role'], user_info.get('access_token'), user_info.get('refresh_token'))
             )
             user = cursor.fetchone()
         return {
-            "id": user[0], "email": user[1], "name": user[2], "role": user[3],
-            "created_at": user[4], "access_token": user[5], "refresh_token": user[6]
+            "id": user[0], "name": user[1], "email": user[2], "role": user[3],
+             "access_token": user[4], "refresh_token": user[5], "created_at": user[6]
         }
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -107,16 +107,16 @@ async def auth_callback(request: Request):
             user_info['refresh_token'] = token.get('refresh_token')
             request.session['user'] = dict(user_info)
             with get_db_cursor() as cursor:
-                cursor.execute("SELECT id FROM testuser WHERE email = %s", (user_info['email'],))
+                cursor.execute("SELECT id FROM users WHERE email = %s", (user_info['email'],))
                 user = cursor.fetchone()
                 if not user:
-                    cursor.execute(
-                        "INSERT INTO testuser (email, name, role, access_token, refresh_token) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                        (user_info['email'], user_info['name'], 'client', token['access_token'], token.get('refresh_token'))
+                   cursor.execute(
+                        "INSERT INTO users (name,email, user_role, access_token, refresh_token, created_at) VALUES (%s, %s, %s, %s, %s, NOW()) RETURNING id",
+                        (user_info['name'], user_info['email'], 'client', token['access_token'], token.get('refresh_token'))
                     )
                 else:
                     cursor.execute(
-                        "UPDATE testuser SET access_token = %s, refresh_token = %s WHERE email = %s",
+                        "UPDATE users SET access_token = %s, refresh_token = %s WHERE email = %s",
                         (token['access_token'], token.get('refresh_token'), user_info['email'])
                     )
         return RedirectResponse(url='/')
