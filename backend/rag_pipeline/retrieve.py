@@ -1,23 +1,25 @@
-import os
-import json
-import requests
-import google.generativeai as genai
-from qdrant_client import QdrantClient
-from dotenv import load_dotenv
-from logger_config import get_logger
-from langchain.memory import ConversationSummaryBufferMemory
-from langchain.schema import messages_from_dict, messages_to_dict
-from langchain_community.llms import Ollama
 import argparse
-import tiktoken
 import datetime
+import json
+import os
+
+import requests
+from dotenv import load_dotenv
+from langchain.memory import ConversationSummaryBufferMemory
+from langchain.schema import messages_to_dict
+from langchain_community.llms import Ollama
 
 # packages for BART summarizer
 from langchain_core.language_models import BaseLLM
-from typing import Optional, List
 from langchain_core.outputs import LLMResult
-from transformers import pipeline
+from qdrant_client import QdrantClient
 
+# == Token counter ==
+from transformers import AutoTokenizer, pipeline
+
+from backend.rag_pipeline.embed import setup_gemini
+from rag_pipeline.logger_config import get_logger
+from rag_pipeline.routing import retrieve_routed_context
 
 # === Load environment & setup logger ===
 load_dotenv()
@@ -27,103 +29,59 @@ logger = get_logger()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
-COLLECTION_NAME = "criminal_code"
+COLLECTION_NAME = "labour_act"
 OLLAMA_MODEL = "llama3.1:latest"
-TOP_K = 3
+TOP_K = 5
 
 
-#== Custom wrapper for BART summarizer ==
-class HuggingFaceLangChainLLM(BaseLLM):
-    def __init__(self):
-        self.pipe = pipeline("summarization", model="facebook/bart-large-cnn")
+# Load the LLaMA 3.1 tokenizer
+tokenizer = AutoTokenizer.from_pretrained("hf-internal-testing/llama-tokenizer")
 
-    def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
-        result = self.pipe(prompt, max_length=100, min_length=30, do_sample=False)
-        return result[0]['summary_text']
-
-    def _generate(self, prompts: List[str], stop: Optional[List[str]] = None) -> LLMResult:
-        generations = []
-        for prompt in prompts:
-            summary = self._call(prompt, stop=stop)
-            generations.append([{"text": summary}])
-        return LLMResult(generations=generations)
-
-    @property
-    def _llm_type(self) -> str:
-        return "huggingface-summarizer"
-
-# == Token counter ==
-tokenizer = tiktoken.get_encoding("cl100k_base")
 
 def count_tokens(text):
-    return len(tokenizer.encode(text))
-def display_token_stats(name, text, max_tokens=4096):
-    tokens = count_tokens(text)
-    print(f"\n{name} token count: {tokens}/{max_tokens} ({tokens/max_tokens:.2%})")
+    tokens = tokenizer.encode(text, add_special_tokens=False)
+    return len(tokens)
 
-#set up for summarizers via CLI
-parser = argparse.ArgumentParser(description="Run Legal RAG Chat")
-parser.add_argument("--summarizer", choices=["llama", "bart"], default="llama", help="Summarizer to use")
-args = parser.parse_args()
 
-if args.summarizer == "llama":
-    summarizer_llm = Ollama(model=OLLAMA_MODEL)
-else:
-    summarizer_llm = HuggingFaceLangChainLLM()
+def display_token_stats(name, text, max_tokens=8192):
+    token_count = count_tokens(text)
+    print(
+        f"\n{name} token count: {token_count}/{max_tokens} ({token_count / max_tokens:.2%})"
+    )
+
+
+summarizer_llm = Ollama(model=OLLAMA_MODEL)
 
 # === LangChain memory ===
 memory = ConversationSummaryBufferMemory(
-    llm=summarizer_llm,
-    max_token_limit= 1000,
-    return_messages=True
-    )
+    llm=summarizer_llm, max_token_limit=500, return_messages=True
+)
 
-# === Gemini Embedding ===
-def setup_gemini():
-    genai.configure(api_key=GEMINI_API_KEY)
-
-def embed_query(query):
-    response = genai.embed_content(
-        model="models/embedding-001",
-        content=query,
-        task_type="RETRIEVAL_QUERY"
-    )
-    return response["embedding"]
 
 # === Qdrant Retrieval ===
 def connect_qdrant():
     return QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
-def retrieve_context(client, query_vector, top_k=TOP_K):
-    try:
-        return client.search(
-            collection_name=COLLECTION_NAME,
-            query_vector=query_vector,
-            limit=top_k,
-            with_payload=True,
-        )
-    except Exception as e:
-        logger.error(f"❌ Qdrant Retrieval Failed: {e}")
-        return []
 
 # === Ollama Call ===
 def generate_with_ollama(prompt, model=OLLAMA_MODEL):
     url = "http://localhost:11434/api/generate"
-    response = requests.post(url, json={
-        "model": model,
-        "prompt": prompt,
-        "stream": False
-    })
+    response = requests.post(
+        url, json={"model": model, "prompt": prompt, "stream": False}
+    )
     if response.status_code == 200:
-        return response.json()['response'].strip()
+        return response.json()["response"].strip()
     else:
         raise RuntimeError(f"Ollama error: {response.text}")
+
 
 # === Prompt Composition ===
 def generate_answer(context_chunks, user_query, chat_history):
     context_text = ""
     for i, chunk in enumerate(context_chunks, start=1):
-        context_text += f"[{i}] {chunk.payload.get('title')}\n{chunk.payload.get('content')}\n\n"
+        context_text += (
+            f"[{i}] {chunk.payload.get('title')}\n{chunk.payload.get('content')}\n\n"
+        )
 
     # Combine chat history
     history_text = ""
@@ -138,6 +96,9 @@ def generate_answer(context_chunks, user_query, chat_history):
         Only use the information from the context and DO NOT rely on outside knowledge. 
         If the answer is not directly supported by the context, state that explicitly. Do NOT invent anything.
 
+        If user asks follow up questions maintain a conversation using the the chat history 
+        provided below.
+
         ### Chat History ###
         {history_text.strip()}
 
@@ -148,6 +109,7 @@ def generate_answer(context_chunks, user_query, chat_history):
         Answer:"""
 
     return generate_with_ollama(prompt)
+
 
 # Saving the chat memory
 def save_memory_as_json(memory, log_dir="logs"):
@@ -179,8 +141,7 @@ def save_memory_as_json(memory, log_dir="logs"):
 
     print(f"✅ Raw chat saved to: {raw_path}")
     if summary_text:
-        print(f"✅ Summary saved to: {summary_path}")
-
+        print(f" Summary saved to: {summary_path}")
 
 
 # === Main RAG Chat Loop ===
@@ -188,14 +149,17 @@ def main():
     setup_gemini()
     client = connect_qdrant()
 
-    print("🧠 Multi-turn Legal Chat (LLaMA 3.1 + Qdrant + LangChain Memory)")
+    print(" Multi-turn Legal Chat")
     while True:
         user_query = input("\n🔎 Ask a legal question (or type 'exit'): ").strip()
         if user_query.lower() in {"exit", "quit"}:
             break
 
-        query_vector = embed_query(user_query)
-        context = retrieve_context(client, query_vector)
+        history = memory.chat_memory.messages
+        context = retrieve_routed_context(client, user_query, history=history)
+
+        # query_vector = embed_query(user_query)
+        # context = retrieve_context(client, query_vector)
         logger.info(f"retrieved context {context}")
 
         if not context:
@@ -203,10 +167,23 @@ def main():
             logger.info(" No relevant documents found.")
             continue
 
+        history_text = "\n".join([f"{m.type.upper()}: {m.content}" for m in history])
+        context_text = "\n".join(
+            doc.payload["content"] for doc in context if "content" in doc.payload
+        )
+
+        # Counting the total input tokens
+        total_input_tokens = (
+            count_tokens(user_query)
+            + count_tokens(context_text)
+            + count_tokens(history_text)
+        )
+
         # Get memory as list of messages
         history_messages = memory.chat_memory.messages
 
         # Generate response using Ollama
+        logger.info(f"Total input tokens: {total_input_tokens}/8192")
         logger.info("Generating answer using Ollama model...")
         answer = generate_answer(context, user_query, history_messages)
 
@@ -215,12 +192,14 @@ def main():
 
         memory.chat_memory.add_user_message(user_query)
         memory.chat_memory.add_ai_message(answer)
+        logger.info("\ntokens {display_token_stats}")
         logger.info("\n Ollama's Answer:\n")
         logger.info(answer)
         logger.info("\n" + "=" * 80 + "\n")
 
-        logger.info("Saved to a file")
+        # logger.info("Saved to a file")
     save_memory_as_json(memory)
+
 
 if __name__ == "__main__":
     main()
