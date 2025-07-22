@@ -5,7 +5,7 @@ def connect_db():
         conn = psycopg2.connect(
             dbname="legalsathi",
             user="postgres",
-            password="",
+            password="superuser",
             host="localhost",
             port="5432"
         )
@@ -14,6 +14,7 @@ def connect_db():
 
     except Exception as e:
         print(f"Error: {e}")
+        return None
 
 # === Get or Create User ===
 def get_or_create_user(conn, username="default_user"):
