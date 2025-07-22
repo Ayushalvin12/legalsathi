@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from langchain.memory import ConversationSummaryBufferMemory
 from langchain.schema import messages_to_dict
 from langchain_community.llms import Ollama
+from mxbai_rerank import MxbaiRerankV2
 
 # packages for BART summarizer
 from langchain_core.language_models import BaseLLM
@@ -17,7 +18,7 @@ from qdrant_client import QdrantClient
 # == Token counter ==
 from transformers import AutoTokenizer, pipeline
 
-from backend.rag_pipeline.embed import setup_gemini
+from rag_pipeline.embed import setup_gemini
 from rag_pipeline.logger_config import get_logger
 from rag_pipeline.routing import retrieve_routed_context
 
@@ -78,7 +79,7 @@ def generate_with_ollama(prompt, model=OLLAMA_MODEL):
 # === Prompt Composition ===
 def generate_answer(context_chunks, user_query, chat_history):
     context_text = ""
-    for i, chunk in enumerate(context_chunks, start=1):
+    for i, (chunk, score) in enumerate(context_chunks, start=1):
         context_text += (
             f"[{i}] {chunk.payload.get('title')}\n{chunk.payload.get('content')}\n\n"
         )
@@ -143,6 +144,31 @@ def save_memory_as_json(memory, log_dir="logs"):
     if summary_text:
         print(f" Summary saved to: {summary_path}")
 
+# Setup reranker
+reranker = MxbaiRerankV2(
+    "mixedbread-ai/mxbai-rerank-base-v2",
+    max_length=8192  # default, can be adjusted up to 32k when needed
+)
+
+def rerank_results_v2(query: str, hits: list, text_key="content"):
+    """
+    Rerank hits using mxbai-rerank-v2.
+    Returns: List of (hit, score) sorted descending.
+    """
+    docs = [hit.payload[text_key] for hit in hits]
+    results = reranker.rank(
+        query=query,
+        documents=docs,
+        return_documents=False  
+    )
+    
+    scored = [
+        (hits[result.index], result.score)
+        for result in results
+    ]
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return scored
+
 
 # === Main RAG Chat Loop ===
 def main():
@@ -158,9 +184,14 @@ def main():
         history = memory.chat_memory.messages
         context = retrieve_routed_context(client, user_query, history=history)
 
+        logger.info("Reranking the retrieved context for better accuracy...")
+        reranked = rerank_results_v2(user_query, context, text_key="content")
+
         # query_vector = embed_query(user_query)
         # context = retrieve_context(client, query_vector)
         logger.info(f"retrieved context {context}")
+        logger.info(f"reranked context {reranked}")
+
 
         if not context:
             print(" No relevant legal context found.")
@@ -185,7 +216,7 @@ def main():
         # Generate response using Ollama
         logger.info(f"Total input tokens: {total_input_tokens}/8192")
         logger.info("Generating answer using Ollama model...")
-        answer = generate_answer(context, user_query, history_messages)
+        answer = generate_answer(reranked, user_query, history_messages)
 
         # Display and update memory
         print(f"\n LLaMA: {answer}")
