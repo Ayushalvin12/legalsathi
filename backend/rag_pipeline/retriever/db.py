@@ -1,3 +1,4 @@
+import os
 import psycopg2
 
 def connect_db():
@@ -5,7 +6,7 @@ def connect_db():
         conn = psycopg2.connect(
             dbname="legalsathi",
             user="postgres",
-            password="superuser",
+            password=os.getenv("DATABASE_PASSWORD"),
             host="localhost",
             port="5432"
         )

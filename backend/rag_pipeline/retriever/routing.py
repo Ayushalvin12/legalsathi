@@ -8,7 +8,7 @@ from typing import Dict, Optional
 from qdrant_client import QdrantClient
 from rag_pipeline.logger_config import get_logger
 
-from backend.rag_pipeline.embed import embed_query
+from rag_pipeline.embed import embed_query
 
 
 logger = get_logger()
