@@ -20,8 +20,9 @@ from transformers import AutoTokenizer, pipeline
 
 from rag_pipeline.embed import setup_gemini
 from rag_pipeline.logger_config import get_logger
-from rag_pipeline.routing import retrieve_routed_context
+from backend.rag_pipeline.retriever.routing import retrieve_routed_context
 
+from rag_pipeline.retriever.db import connect_db, get_or_create_user,create_conversation, insert_message
 # === Load environment & setup logger ===
 load_dotenv()
 logger = get_logger()
@@ -31,7 +32,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
 COLLECTION_NAME = "labour_act"
-OLLAMA_MODEL = "llama3.1:latest"
+OLLAMA_MODEL = "tinyllama:1.1b"
 TOP_K = 5
 
 
@@ -169,11 +170,22 @@ def rerank_results_v2(query: str, hits: list, text_key="content"):
     scored.sort(key=lambda x: x[1], reverse=True)
     return scored
 
+# === Memory + DB Persistence ===
+def save_turn_to_memory_and_db(memory, conn, conversation_id, user_input, answer):
+    memory.chat_memory.add_user_message(user_input)
+    memory.chat_memory.add_ai_message(answer)
+
+    insert_message(conn, conversation_id, "user", user_input)
+    insert_message(conn, conversation_id, "assistant", answer)
 
 # === Main RAG Chat Loop ===
 def main():
     setup_gemini()
     client = connect_qdrant()
+    conn = connect_db()
+
+    user_id = get_or_create_user(conn, "test-user")
+    conversation_id = create_conversation(conn, user_id)
 
     print(" Multi-turn Legal Chat")
     while True:
@@ -220,9 +232,10 @@ def main():
 
         # Display and update memory
         print(f"\n LLaMA: {answer}")
+        save_turn_to_memory_and_db(memory, conn, conversation_id, user_query, answer)
 
-        memory.chat_memory.add_user_message(user_query)
-        memory.chat_memory.add_ai_message(answer)
+        # memory.chat_memory.add_user_message(user_query)
+        # memory.chat_memory.add_ai_message(answer)
         logger.info("\ntokens {display_token_stats}")
         logger.info("\n Ollama's Answer:\n")
         logger.info(answer)

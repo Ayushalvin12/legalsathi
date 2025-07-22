@@ -60,7 +60,7 @@ def classify_query_domain(query: str) -> str:
     return "criminal"  # Default fallback
 
 
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "tinyllama:1.1b")
 
 
 def classify_with_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:

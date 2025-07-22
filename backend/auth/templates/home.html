@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LegalSathi - Home</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .user-info {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .auth-buttons {
+            margin-top: 20px;
+        }
+        .auth-buttons a {
+            margin: 0 10px;
+            padding: 10px 20px;
+            text-decoration: none;
+            color: white;
+            background-color: #4285F4;
+            border-radius: 5px;
+        }
+        .auth-buttons a:hover {
+            background-color: #357ae8;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to LegalSathi</h1>
+    {% if user %}
+        <div class="user-info">
+            <h2>Hello, {{ user.name | default('User') }}!</h2>
+            <p>Email: {{ user.email }}</p>
+            <p><a href="/protected">Go to Dashboard</a></p>
+            <p><a href="/logout">Log Out</a></p>
+        </div>
+    {% else %}
+        <p>Please sign up or log in to access your account.</p>
+        <div class="auth-buttons">
+            <a href="/signup">Sign Up with Google</a>
+            <a href="/signin">Log In with Google</a>
+        </div>
+    {% endif %}
+</body>
+</html>
