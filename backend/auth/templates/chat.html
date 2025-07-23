@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="LegalSathi - AI-powered legal chat assistant">
+    <title>LegalSathi Chat</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../static/styles.css">
+</head>
+<body>
+    <nav class="navbar navbar-light bg-dark" role="navigation" aria-label="Main navigation">
+        <a class="navbar-brand" href="#">LegalSathi</a>
+        <button id="dark-mode-toggle" aria-label="Toggle dark mode" class="dark-mode-toggle btn btn-outline-light">
+            <span class="icon">🌙</span>
+        </button>
+    </nav>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-3 conversation-tab d-none d-md-block" id="conversation-tab" role="complementary" aria-label="Conversation history">
+                <div class="p-2">
+                    <button class="btn btn-primary btn-block" id="new-conversation-btn" style="background-color:#4b5563" aria-label="Start new conversation">
+                        + New Conversation
+                    </button>
+                </div>
+                <ul class="list-group" id="conversation-list" role="list">
+                    <!-- Conversations loaded here -->
+                </ul>
+            </div>
+            <div class="col-md-9 chat-area" role="main" aria-label="Chat area">
+                <div class="messages" id="messages" role="log" aria-live="polite">
+                    <!-- Messages loaded here -->
+                </div>
+                <form id="message-form">
+                    <div class="input-group">
+                        <textarea class="form-control" id="message-input" rows="1" placeholder="Type your legal query..." aria-label="Message input"></textarea>
+                        <div class="input-group-append">
+                            <button class="btn btn-primary" type="button" id="send-button" aria-label="Send message">➤</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <button class="btn btn-primary d-md-none" id="toggle-conversations" aria-label="Toggle conversation panel">Conversations</button>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        let currentConversationId = null;
+
+        // Fetch and display conversations
+        function fetchConversations(selectedConversationId = null) {
+            fetch(`http://127.0.0.1:8080/users/1/conversations`) // replace with logged-in user_id
+                .then(response => response.json())
+                .then(conversations => {
+                    const conversationList = document.getElementById('conversation-list');
+                    conversationList.innerHTML = '';
+
+                    if (conversations.length === 0) {
+                        conversationList.innerHTML = `
+                            <li class="list-group-item text-center text-muted" role="listitem">
+                                No conversations yet. Start a new one!
+                            </li>
+                        `;
+                        return;
+                    }
+
+                    conversations.forEach((conv, index) => {
+                        const li = document.createElement('li');
+                        li.className = `list-group-item d-flex justify-content-between align-items-center ${conv.id === selectedConversationId ? 'active' : ''}`;
+                        li.dataset.conversationId = conv.id;
+                        li.setAttribute('role', 'listitem');
+
+                        li.innerHTML = `
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">Legal Conversation ${index + 1}</h6>
+                                <small class="text-muted">${new Date(conv.created_at).toLocaleDateString()}</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger delete-conversation" aria-label="Delete conversation">×</button>
+                        `;
+
+                        // Load conversation on click (except delete button)
+                        li.querySelector('.flex-grow-1').addEventListener('click', () => {
+                            document.querySelectorAll('.list-group-item').forEach(item => item.classList.remove('active'));
+                            li.classList.add('active');
+                            loadConversation(conv);
+                        });
+
+                        // Delete conversation
+                        li.querySelector('.delete-conversation').addEventListener('click', (e) => {
+                            e.stopPropagation(); // prevent triggering loadConversation
+                            if (confirm("Are you sure you want to delete this conversation?")) {
+                                fetch(`http://127.0.0.1:8080/conversations/${conv.id}`, {
+                                    method: 'DELETE'
+                                })
+                                .then(response => {
+                                    if (!response.ok) throw new Error('Failed to delete conversation');
+                                    return response.json();
+                                })
+                                .then(() => {
+                                    if (currentConversationId === conv.id) {
+                                        currentConversationId = null;
+                                        document.getElementById('messages').innerHTML = '';
+                                    }
+                                    fetchConversations();
+                                })
+                                .catch(err => alert(`Error: ${err.message}`));
+                            }
+                        });
+
+                        conversationList.appendChild(li);
+                    });
+
+                    if (selectedConversationId) {
+                        const selected = conversationList.querySelector(`[data-conversation-id="${selectedConversationId}"]`);
+                        if (selected) selected.querySelector('.flex-grow-1').click();
+                    } else if (conversationList.children.length > 0) {
+                        conversationList.children[0].querySelector('.flex-grow-1').click();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching conversations:', error);
+                    alert('Failed to load conversations. Please try again.');
+                });
+        }
+
+        // Load messages for a conversation
+        function loadConversation(conv) {
+            currentConversationId = conv.id;
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+
+            conv.messages.forEach(msg => {
+                displayMessage(msg.role, msg.content, new Date(msg.created_at).toLocaleTimeString());
+            });
+        }
+
+        // Send message and fetch AI response
+        function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Display the user's message immediately
+            displayMessage('user', message, new Date().toLocaleTimeString());
+            messageInput.value = '';
+            messageInput.style.height = 'auto'; // Reset textarea height
+            showLoadingIndicator();
+
+            // Prepare payload for /chat
+            const payload = {
+                user_query: message,
+                user_id: 1, // replace with the logged-in user ID
+            };
+
+            if (currentConversationId) {
+                payload.conversation_id = currentConversationId;
+            }
+
+            fetch('http://127.0.0.1:8080/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(data => {
+                hideLoadingIndicator();
+                if (!currentConversationId && data.conversation_id) {
+                    currentConversationId = data.conversation_id;
+                    fetchConversations(data.conversation_id); // Refresh with new conversation selected
+                }
+                displayMessage('ai', data.answer, new Date().toLocaleTimeString());
+            })
+            .catch(error => {
+                hideLoadingIndicator();
+                displayMessage('ai', `Error: ${error.message}`, new Date().toLocaleTimeString());
+            });
+        }
+
+        // Display a message in the chat
+        function displayMessage(role, content, timestamp) {
+            const messagesDiv = document.getElementById('messages');
+            const wasAtBottom = isAtBottom();
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            messageDiv.setAttribute('role', 'listitem');
+            const avatar = role === 'user' ? 'U' : 'AI';
+            messageDiv.innerHTML = `
+                <div class="avatar">${avatar}</div>
+                <div class="content">${content}</div>
+                <div class="timestamp">${timestamp}</div>
+                <div class="reactions">
+                    <button class="reaction-btn" aria-label="Add thumbs up reaction">👍</button>
+                    <button class="reaction-btn" aria-label="Add heart reaction">❤️</button>
+                </div>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            if (wasAtBottom) scrollToBottom();
+        }
+
+        // Check if user is at the bottom of the messages
+        function isAtBottom() {
+            const messagesDiv = document.getElementById('messages');
+            return messagesDiv.scrollHeight - messagesDiv.scrollTop <= messagesDiv.clientHeight + 10;
+        }
+
+        // Show loading indicator
+        function showLoadingIndicator() {
+            const loader = document.createElement('div');
+            loader.className = 'loading';
+            loader.innerHTML = '<div class="loading-spinner" role="status"><span class="sr-only">Loading...</span></div>';
+            document.getElementById('messages').appendChild(loader);
+            scrollToBottom();
+        }
+
+        // Hide loading indicator
+        function hideLoadingIndicator() {
+            const loader = document.querySelector('.loading');
+            if (loader) loader.remove();
+        }
+
+        // Scroll to bottom of messages
+        function scrollToBottom() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Create new conversation
+        document.getElementById('new-conversation-btn').addEventListener('click', () => {
+            fetch('http://127.0.0.1:8080/conversations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ user_id: 1 }) // replace with actual user_id
+            })
+            .then(response => response.json())
+            .then(data => {
+                currentConversationId = data.conversation_id;
+                document.getElementById('messages').innerHTML = '';
+                fetchConversations(data.conversation_id);
+            })
+            .catch(err => {
+                console.error('Error creating conversation:', err);
+                alert('Failed to create conversation. Please try again.');
+            });
+        });
+
+        // Event listeners
+        document.getElementById('send-button').addEventListener('click', sendMessage);
+        document.getElementById('message-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            sendMessage();
+        });
+        document.getElementById('toggle-conversations').addEventListener('click', () => {
+            const conversationTab = document.getElementById('conversation-tab');
+            conversationTab.classList.toggle('d-none');
+        });
+
+        // Dark mode toggle
+        document.getElementById('dark-mode-toggle').addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+        });
+
+        // Load theme preference
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+        }
+
+        // Auto-resize textarea
+        const textarea = document.getElementById('message-input');
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${textarea.scrollHeight}px`;
+        });
+
+        // Keyboard shortcut for sending message (Ctrl+Enter)
+        textarea.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+ 
+        // Reaction button handler
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('reaction-btn')) {
+                e.target.classList.toggle('reacted');
+            }
+        });
+
+        // Initial load
+        fetchConversations();
+    </script>
+</body>
+</html>

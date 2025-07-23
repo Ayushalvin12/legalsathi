@@ -151,19 +151,108 @@ def save_turn_to_memory_and_db(memory, conn, conversation_id, user_input, answer
 
 # === FastAPI app ===
 app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import HTTPException
+from typing import List
+from datetime import datetime
+
+@app.get("/users/{user_id}/conversations")
+async def get_user_conversations(user_id: int):
+    try:
+        with db_conn.cursor() as cur:
+            # Get conversations
+            cur.execute("""
+                SELECT id, created_at 
+                FROM conversations
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+            """, (user_id,))
+            conversations = cur.fetchall()
+
+            if not conversations:
+                return []
+
+            conversation_ids = [c[0] for c in conversations]
+
+            # Get messages for all conversations
+            cur.execute("""
+                SELECT id, conversation_id, role, content, created_at
+                FROM messages
+                WHERE conversation_id = ANY(%s)
+                ORDER BY created_at ASC
+            """, (conversation_ids,))
+            messages = cur.fetchall()
+
+            # Group messages by conversation_id
+            messages_by_conv = {}
+            for m in messages:
+                messages_by_conv.setdefault(m[1], []).append({
+                    "id": m[0],
+                    "role": m[2],
+                    "content": m[3],
+                    "created_at": m[4]
+                })
+
+            # Prepare final response
+            result = []
+            for c in conversations:
+                result.append({
+                    "id": c[0],
+                    "created_at": c[1],
+                    "messages": messages_by_conv.get(c[0], [])
+                })
+
+            return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class QueryRequest(BaseModel):
     user_query: str
+    conversation_id: int | None = None 
+    user_id: int  
 
+class ConversationCreateRequest(BaseModel):
+    user_id: int
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Setup clients once
 setup_gemini()
 qdrant_client = connect_qdrant()
 db_conn = connect_db()
 user_id = get_or_create_user(db_conn, "api-user")
-conversation_id = create_conversation(db_conn, user_id)
+# conversation_id = create_conversation(db_conn, user_id)
 
+@app.post("/conversations")
+async def create_new_conversation(request: ConversationCreateRequest):
+    user_id = request.user_id
+    with db_conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO conversations (user_id) VALUES (%s) RETURNING id, created_at
+        """, (user_id,))
+        new_conv = cur.fetchone()
+        db_conn.commit()
+        return {"id": new_conv[0], "created_at": new_conv[1]}
+
+
+@app.delete("/conversations/{conversation_id}")
+async def delete_conversation(conversation_id: int):
+    with db_conn.cursor() as cur:
+        cur.execute("DELETE FROM conversations WHERE id = %s RETURNING id", (conversation_id,))
+        deleted = cur.fetchone()
+        db_conn.commit()
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        return {"message": "Conversation deleted successfully"}
 
 @app.post("/chat")
 async def chat_endpoint(request: QueryRequest):
@@ -171,6 +260,17 @@ async def chat_endpoint(request: QueryRequest):
         user_query = request.user_query.strip()
         if not user_query:
             raise HTTPException(status_code=400, detail="Empty query")
+
+        # If no conversation_id provided, create one
+        conversation_id = request.conversation_id
+        if conversation_id is None:
+            with db_conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO conversations (user_id) VALUES (%s) RETURNING id",
+                    (request.user_id,)
+                )
+                conversation_id = cur.fetchone()[0]
+                db_conn.commit()
 
         history = memory.chat_memory.messages
         context = retrieve_routed_context(qdrant_client, user_query, history=history)
@@ -238,7 +338,7 @@ def main():
 
     else:
         import uvicorn
-        uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=True)
+        uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=False)
 
 
 if __name__ == "__main__":
