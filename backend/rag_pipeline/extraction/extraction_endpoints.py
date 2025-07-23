@@ -2,30 +2,31 @@ import os
 import tempfile
 from datetime import datetime
 
-from chunks import chunk_legal_sections
-from data_embedding import (
+from backend.rag_pipeline.extraction.chunks import chunk_legal_sections
+from backend.rag_pipeline.extraction.data_embedding import (
     connect_qdrant,
     embed_with_gemini,
     load_embedder_gemini,
     upload_chunks,
 )
 from dotenv import load_dotenv
-from extractor import extract_from_pdf
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
-from rag_pipeline.logger_config import get_logger
+from backend.rag_pipeline.extraction.extractor import extract_from_pdf
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from backend.rag_pipeline.logger_config import get_logger
 
+# Load environment variables
 load_dotenv()
+
 logger = get_logger(__name__)
 
-app = FastAPI()
+# Create a router for modularity
+router = APIRouter()
 
-
-@app.get("/")
+@router.get("/")
 async def root():
     return {"message": "Health-check!"}
 
-
-@app.post("/upload-pdf/")
+@router.post("/upload-pdf/")
 async def upload_pdf(
     file: UploadFile = File(...),
     save_extract: bool = Query(False, description="Save extracted JSON"),
@@ -37,7 +38,7 @@ async def upload_pdf(
     - save_extract: If true, the extracted content will be saved as JSON.
     - save_chunks: If true, the chunked content will be saved as JSON.
     """
-    # validation for the uploaded file type(only pdf supported!)
+    # Validation for the uploaded file type (only PDF supported!)
     if file.content_type != "application/pdf":
         logger.error("Invalid file type. Must be a PDF.")
         raise HTTPException(status_code=400, detail="File must be a pdf")
@@ -92,7 +93,9 @@ async def upload_pdf(
         # Step 3: Embed chunks using Gemini
         gemini_api_key = os.getenv("GEMINI_API_KEY")
         logger.info(" Loading Gemini embedder...")
-        model = load_embedder_gemini(gemini_api_key)
+        model = load_embedder_gemini("AIzaSyAmiSB0MWbP7cu0rzOz-Bu1eXFcgbgpEyQ")
+
+        logger.info(f"env file variables.....{os.getenv("QDRANT_URL")}")
 
         logger.info(" Embedding chunks...")
         for chunk in chunks:
@@ -104,8 +107,15 @@ async def upload_pdf(
         collection = "test_criminal_civil_code"
         vector_dim = len(chunks[0]["vector"])
 
+        # logger.info(f"Qdrant_url: {os.getenv("QDRANT_API_KEY")}")
         logger.info(" Connecting to Qdrant...")
-        client = connect_qdrant(qdrant_api_key, qdrant_url, collection, vector_dim)
+        
+        client = connect_qdrant(
+            qdrant_api_key,
+            qdrant_url,
+            collection,
+            vector_dim
+        )
 
         # Step 5: Upload embedded chunks to Qdrant
         logger.info("Uploading embedded chunks to Qdrant...")

@@ -6,7 +6,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
-from rag_pipeline.logger_config import get_logger
+from backend.rag_pipeline.logger_config import get_logger
 from tqdm import tqdm
 
 load_dotenv()
@@ -30,15 +30,17 @@ def load_chunks(path):
 
 
 # Load Gemini embedding model
-def load_embedder_gemini(api_key):
-    genai.configure(api_key=api_key)
+def load_embedder_gemini(gemini_api_key):
+    genai.configure(api_key=gemini_api_key)
     return True
 
 
 # Embed a single chunk with Gemini
 def embed_with_gemini(text, model):
     response = genai.embed_content(
-        model="models/embedding-001", content=text, task_type="RETRIEVAL_DOCUMENT"
+        model="models/embedding-001", 
+        content=text, 
+        task_type="RETRIEVAL_DOCUMENT"
     )
     return response["embedding"]
 

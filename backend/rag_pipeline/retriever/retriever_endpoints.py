@@ -1,31 +1,22 @@
-import argparse
-import datetime
-import json
 import os
 import requests
 from dotenv import load_dotenv
 from langchain.memory import ConversationSummaryBufferMemory
-from langchain.schema import messages_to_dict
 from langchain_community.llms import Ollama
 from mxbai_rerank import MxbaiRerankV2
-from langchain_core.language_models import BaseLLM
-from langchain_core.outputs import LLMResult
 from qdrant_client import QdrantClient
-from transformers import AutoTokenizer, pipeline
-
-from rag_pipeline.embed import setup_gemini
-from rag_pipeline.logger_config import get_logger
-from rag_pipeline.retriever.routing import retrieve_routed_context
-from rag_pipeline.retriever.db import (
-    connect_db,
+from transformers import AutoTokenizer
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from backend.rag_pipeline.retriever.embed import setup_gemini
+from backend.rag_pipeline.logger_config import get_logger
+from backend.rag_pipeline.retriever.routing import retrieve_routed_context
+from backend.rag_pipeline.retriever.retriever_db import (
     get_or_create_user,
     create_conversation,
     insert_message,
 )
-
-# === FastAPI imports ===
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from backend.auth.auth_db import get_db_cursor  
 
 # === Load environment & setup logger ===
 load_dotenv()
@@ -35,18 +26,16 @@ logger = get_logger()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
-COLLECTION_NAME = "labour_act"
-OLLAMA_MODEL = "tinyllama:1.1b"
+# COLLECTION_NAME = "labour_act"
+OLLAMA_MODEL = "llama3.1:latest"
 TOP_K = 5
 
 # Load tokenizer
-tokenizer = AutoTokenizer.from_pretrained("hf-internal-testing/llama-tokenizer")
-
+tokenizer = AutoTokenizer.from_pretrained("hf-internal-testing/llama-tokenizer", legacy=True)
 
 def count_tokens(text):
     tokens = tokenizer.encode(text, add_special_tokens=False)
     return len(tokens)
-
 
 def display_token_stats(name, text, max_tokens=8192):
     token_count = count_tokens(text)
@@ -54,16 +43,13 @@ def display_token_stats(name, text, max_tokens=8192):
         f"\n{name} token count: {token_count}/{max_tokens} ({token_count / max_tokens:.2%})"
     )
 
-
 summarizer_llm = Ollama(model=OLLAMA_MODEL)
 memory = ConversationSummaryBufferMemory(
     llm=summarizer_llm, max_token_limit=500, return_messages=True
 )
 
-
 def connect_qdrant():
     return QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-
 
 def generate_with_ollama(prompt, model=OLLAMA_MODEL):
     url = "http://localhost:11434/api/generate"
@@ -74,7 +60,6 @@ def generate_with_ollama(prompt, model=OLLAMA_MODEL):
         return response.json()["response"].strip()
     else:
         raise RuntimeError(f"Ollama error: {response.text}")
-
 
 def generate_answer(context_chunks, user_query, chat_history):
     context_text = ""
@@ -108,31 +93,14 @@ def generate_answer(context_chunks, user_query, chat_history):
 
     return generate_with_ollama(prompt)
 
-
-def save_memory_as_json(memory, log_dir="logs"):
-    os.makedirs(log_dir, exist_ok=True)
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-    session_id = f"session_{timestamp}"
-    raw_path = os.path.join(log_dir, f"{session_id}_raw.json")
-    summary_path = os.path.join(log_dir, f"{session_id}_summary.txt")
-    raw_messages = messages_to_dict(memory.chat_memory.messages)
-    with open(raw_path, "w", encoding="utf-8") as f:
-        json.dump(raw_messages, f, indent=2, ensure_ascii=False)
-    summary_text = None
-    if hasattr(memory, "moving_summary_buffer"):
-        summary_text = memory.moving_summary_buffer
-    elif hasattr(memory, "buffer_summary"):
-        summary_text = memory.buffer_summary
-    if summary_text:
-        with open(summary_path, "w", encoding="utf-8") as f:
-            f.write(summary_text)
-    print(f"✅ Raw chat saved to: {raw_path}")
-    if summary_text:
-        print(f" Summary saved to: {summary_path}")
-
+def save_turn_to_memory_and_db(memory, conversation_id, user_input, answer):
+    with get_db_cursor() as cursor:
+        memory.chat_memory.add_user_message(user_input)
+        memory.chat_memory.add_ai_message(answer)
+        insert_message(conversation_id, "user", user_input)
+        insert_message(conversation_id, "assistant", answer)
 
 reranker = MxbaiRerankV2("mixedbread-ai/mxbai-rerank-base-v2", max_length=8192)
-
 
 def rerank_results_v2(query: str, hits: list, text_key="content"):
     docs = [hit.payload[text_key] for hit in hits]
@@ -141,36 +109,27 @@ def rerank_results_v2(query: str, hits: list, text_key="content"):
     scored.sort(key=lambda x: x[1], reverse=True)
     return scored
 
-
-def save_turn_to_memory_and_db(memory, conn, conversation_id, user_input, answer):
-    memory.chat_memory.add_user_message(user_input)
-    memory.chat_memory.add_ai_message(answer)
-    insert_message(conn, conversation_id, "user", user_input)
-    insert_message(conn, conversation_id, "assistant", answer)
-
-
-# === FastAPI app ===
-app = FastAPI()
-
+# === FastAPI router ===
+router = APIRouter()
 
 class QueryRequest(BaseModel):
     user_query: str
 
-
-# Setup clients once
+# Setup clients (move to request scope if needed)
 setup_gemini()
 qdrant_client = connect_qdrant()
-db_conn = connect_db()
-user_id = get_or_create_user(db_conn, "api-user")
-conversation_id = create_conversation(db_conn, user_id)
 
-
-@app.post("/chat")
+@router.post("/chat")
 async def chat_endpoint(request: QueryRequest):
     try:
         user_query = request.user_query.strip()
         if not user_query:
             raise HTTPException(status_code=400, detail="Empty query")
+
+        # Get or create user and conversation per request
+        with get_db_cursor() as cursor:
+            user_id = get_or_create_user("api-user")
+            conversation_id = create_conversation(user_id)
 
         history = memory.chat_memory.messages
         context = retrieve_routed_context(qdrant_client, user_query, history=history)
@@ -180,7 +139,7 @@ async def chat_endpoint(request: QueryRequest):
         reranked = rerank_results_v2(user_query, context, text_key="content")
         answer = generate_answer(reranked, user_query, history)
 
-        save_turn_to_memory_and_db(memory, db_conn, conversation_id, user_query, answer)
+        save_turn_to_memory_and_db(memory, conversation_id, user_query, answer)
 
         return {
             "question": user_query,
@@ -190,10 +149,12 @@ async def chat_endpoint(request: QueryRequest):
         logger.error(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# === CLI mode ===
+# === CLI mode (optional, can be separated if needed) ===
 def main():
     import argparse
+    import datetime
+    import json
+    from langchain.schema import messages_to_dict
 
     parser = argparse.ArgumentParser(description="Legal RAG assistant")
     parser.add_argument("--mode", choices=["cli", "api"], default="api",
@@ -205,9 +166,9 @@ def main():
     if args.mode == "cli":
         setup_gemini()
         client = connect_qdrant()
-        conn = connect_db()
-        user_id = get_or_create_user(conn, "test-user")
-        conversation_id = create_conversation(conn, user_id)
+        with get_db_cursor() as cursor:
+            user_id = get_or_create_user("test-user")
+            conversation_id = create_conversation(user_id)
         print(" Multi-turn Legal Chat")
         while True:
             user_query = input("\n Ask a legal question (or type 'exit'): ").strip()
@@ -233,14 +194,27 @@ def main():
             logger.info(f"Total tokens: {total_input_tokens}/8192")
             answer = generate_answer(reranked, user_query, history_messages)
             print(f"\n LLaMA: {answer}")
-            save_turn_to_memory_and_db(memory, conn, conversation_id, user_query, answer)
-        save_memory_as_json(memory)
+            save_turn_to_memory_and_db(memory, conversation_id, user_query, answer)
+        # Save memory (optional)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        session_id = f"session_{timestamp}"
+        raw_path = os.path.join("logs", f"{session_id}_raw.json")
+        summary_path = os.path.join("logs", f"{session_id}_summary.txt")
+        os.makedirs("logs", exist_ok=True)
+        raw_messages = messages_to_dict(memory.chat_memory.messages)
+        with open(raw_path, "w", encoding="utf-8") as f:
+            json.dump(raw_messages, f, indent=2, ensure_ascii=False)
+        summary_text = memory.moving_summary_buffer if hasattr(memory, "moving_summary_buffer") else memory.buffer_summary
+        if summary_text:
+            with open(summary_path, "w", encoding="utf-8") as f:
+                f.write(summary_text)
+        print(f"✅ Raw chat saved to: {raw_path}")
+        if summary_text:
+            print(f" Summary saved to: {summary_path}")
 
     else:
-        import uvicorn
-        uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=True)
-
+        # API mode is handled by main.py, no need to run Uvicorn here
+        pass
 
 if __name__ == "__main__":
     main()
-

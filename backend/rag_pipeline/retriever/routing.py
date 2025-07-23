@@ -6,9 +6,9 @@ import logging
 from langchain_core.messages import BaseMessage
 from typing import Dict, Optional
 from qdrant_client import QdrantClient
-from rag_pipeline.logger_config import get_logger
+from backend.rag_pipeline.logger_config import get_logger
 
-from rag_pipeline.embed import embed_query
+from backend.rag_pipeline.retriever.embed import embed_query
 
 
 logger = get_logger()
@@ -60,7 +60,7 @@ def classify_query_domain(query: str) -> str:
     return "criminal"  # Default fallback
 
 
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "tinyllama:1.1b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
 
 
 def classify_with_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:

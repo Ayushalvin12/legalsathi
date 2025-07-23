@@ -5,20 +5,23 @@ import os
 
 load_dotenv()
 
+
+ # Debug line
+
+
 def connect_db():
     try:
         conn = psycopg2.connect(
-            dbname="legalsathi",
-            user="postgres",
-            password=os.getenv("DATABASE_PASSWORD"),
-            host="localhost",
-            port="5432"
+            dbname=os.getenv("DB_NAME", "legalsathi"),
+            user=os.getenv("DB_USER", "postgres"),
+            password=os.getenv("DB_PASSWORD", "superuser"),
+            host=os.getenv("DB_HOST", "localhost"),
+            port=os.getenv("DB_PORT", "5432")
         )
-        print("Connection successful....")
+        print("Connection successful....Type: {type(conn)}")
         return conn
     except Exception as e:
-        print(f"Error: {e}")
-        return None
+        raise Exception(f"DB connection Failed: {e}")
 
 @contextmanager
 def get_db_cursor():

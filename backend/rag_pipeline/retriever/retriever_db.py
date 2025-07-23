@@ -4,11 +4,11 @@ import psycopg2
 def connect_db():
     try:
         conn = psycopg2.connect(
-            dbname="legalsathi",
-            user="postgres",
-            password=os.getenv("DATABASE_PASSWORD"),
-            host="localhost",
-            port="5432"
+            dbname=os.getenv("DB_NAME", "legalsathi"),
+            user=os.getenv("DB_USER", "postgres"),
+            password=os.getenv("DB_PASSWORD", "superuser"),
+            host=os.getenv("DB_HOST", "localhost"),
+            port=os.getenv("DB_PORT", "5432")
         )
         print(f"Connection successful....")
         return conn
@@ -18,19 +18,22 @@ def connect_db():
         return None
 
 # === Get or Create User ===
-def get_or_create_user(conn, username="default_user"):
+def get_or_create_user(conn, name="default_user"):
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM users WHERE username=%s", (username,))
+        cur.execute("SELECT id FROM users WHERE name=%s", (name,))
         user = cur.fetchone()
         if user:
             return user[0]
         
-        dummy_email = f"{username}@example.com"
+        dummy_email = f"{name}@example.com"
+        default_role = "client"
+        access_token = ""
+        refresh_token = ""
         cur.execute("""
-            INSERT INTO users (username, email) 
+            INSERT INTO users (name, email) 
             VALUES (%s, %s) 
             RETURNING id
-        """, (username, dummy_email))
+        """, (name, dummy_email))
         user_id = cur.fetchone()[0]
         conn.commit()
         return user_id

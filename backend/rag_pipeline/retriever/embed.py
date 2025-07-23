@@ -9,6 +9,8 @@ def setup_gemini():
 
 def embed_query(query):
     result = genai.embed_content(
-        model="models/embedding-001", content=query, task_type="RETRIEVAL_QUERY"
+        model="models/embedding-001", 
+        content=query, 
+        task_type="RETRIEVAL_QUERY"
     )
     return result["embedding"]  # This must be a list[float]
