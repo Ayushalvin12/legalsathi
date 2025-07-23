@@ -61,11 +61,11 @@ async def get_current_user(request: Request):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     
     with get_db_cursor() as cursor:
-        cursor.execute("SELECT id, name, email, user_role,  access_token, refresh_token, created_at FROM users WHERE email = %s", (user_info['email'],))
+        cursor.execute("SELECT id, username, email, user_role,  access_token, refresh_token, created_at FROM users WHERE email = %s", (user_info['email'],))
         user = cursor.fetchone()
         if not user:
             cursor.execute(
-                "INSERT INTO users (name, email, user_role, access_token, refresh_token created_at) VALUES (%s, %s, %s, %s, %s) RETURNING id, name, email, user_role,  access_token, refresh_token, created_at",
+                "INSERT INTO users (username, email, user_role, access_token, refresh_token created_at) VALUES (%s, %s, %s, %s, %s) RETURNING id, name, email, user_role,  access_token, refresh_token, created_at",
                 (user_info['name'], user_info['email'], user_info['user_role'], user_info.get('access_token'), user_info.get('refresh_token'))
             )
             user = cursor.fetchone()
@@ -79,15 +79,41 @@ async def home(request: Request):
     return templates.TemplateResponse("home.html", {"request": request, "user": user_info})
 
 @app.get("/signup", response_class=HTMLResponse)
-async def home(request: Request):
-    user_info = request.session.get("user")
-    return templates.TemplateResponse("signup.html", {"request": request, "user": user_info})
+async def signup(request: Request, redirected: bool = False):
+    return templates.TemplateResponse(
+        "signup.html",
+        {"request": request, "redirected": redirected}
+    )
 
 @app.get("/signin", response_class=HTMLResponse)
 async def home(request: Request):
     user_info = request.session.get("user")
     return templates.TemplateResponse("signin.html", {"request": request, "user": user_info})
 
+@app.get("/chatapp", response_class=HTMLResponse)
+async def chatapp(request: Request):
+    user_info = request.session.get("user")
+    if not user_info:
+        return RedirectResponse(url="/signup?redirected=true", status_code=status.HTTP_302_FOUND)
+    try:
+        with get_db_cursor() as cursor:
+            cursor.execute("SELECT id, username, email, user_role, access_token, refresh_token, created_at FROM users WHERE email = %s", (user_info['email'],))
+            user = cursor.fetchone()
+            if not user:
+                cursor.execute(
+                    "INSERT INTO users (username, email, user_role, access_token, refresh_token, created_at) VALUES (%s, %s, %s, %s, %s, NOW()) RETURNING id, username, email, user_role, access_token, refresh_token, created_at",
+                    (user_info['name'], user_info['email'], 'client', user_info.get('access_token'), user_info.get('refresh_token'))
+                )
+                user = cursor.fetchone()
+            current_user = {
+                "id": user[0], "name": user[1], "email": user[2], "role": user[3],
+                "access_token": user[4], "refresh_token": user[5], "created_at": user[6]
+            }
+        return templates.TemplateResponse("chat.html", {"request": request, "user": current_user})
+    except Exception as e:
+        print(f"Error in chatapp: {str(e)}")
+        return RedirectResponse(url="/signup?redirected=true", status_code=status.HTTP_302_FOUND)
+                                
 @app.get("/auth")
 async def login(request: Request):
     redirect_uri = 'http://127.0.0.1:8000/auth/callback'
@@ -111,7 +137,7 @@ async def auth_callback(request: Request):
                 user = cursor.fetchone()
                 if not user:
                    cursor.execute(
-                        "INSERT INTO users (name,email, user_role, access_token, refresh_token, created_at) VALUES (%s, %s, %s, %s, %s, NOW()) RETURNING id",
+                        "INSERT INTO users (username,email, user_role, access_token, refresh_token, created_at) VALUES (%s, %s, %s, %s, %s, NOW()) RETURNING id",
                         (user_info['name'], user_info['email'], 'client', token['access_token'], token.get('refresh_token'))
                     )
                 else:
@@ -119,7 +145,7 @@ async def auth_callback(request: Request):
                         "UPDATE users SET access_token = %s, refresh_token = %s WHERE email = %s",
                         (token['access_token'], token.get('refresh_token'), user_info['email'])
                     )
-        return RedirectResponse(url='/')
+        return RedirectResponse(url='/chatapp')
     except Exception as e:
         print(f"Callback error: {str(e)}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))

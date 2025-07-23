@@ -160,6 +160,33 @@
     <div class="image-side" aria-label="Law related image"></div>
   </div>
 
+  <!-- Toast Notification for Unauthenticated Access -->
+  <div class="toast-container">
+    <div class="toast" id="authPromptToast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="true" data-bs-delay="5000">
+      <div class="toast-header">
+        <strong class="me-auto">Authentication Required</strong>
+        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+      <div class="toast-body">
+        You need to sign up or log in to access the Legal Sathi chat.
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Show the toast only if redirected from chatapp
+    document.addEventListener('DOMContentLoaded', function () {
+      const redirected = {{ redirected | tojson }};
+      if (redirected) {
+        const authToast = new bootstrap.Toast(document.getElementById('authPromptToast'), {
+          animation: true,
+          autohide: true,
+          delay: 5000
+        });
+        authToast.show();
+      }
+    });
+  </script>
 </body>
 </html>

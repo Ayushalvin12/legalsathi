@@ -343,3 +343,17 @@ body.dark-mode {
         width: 100%;
     }
 }
+/* static/styles.css */
+.navbar .dropdown-menu {
+    min-width: 200px;
+}
+.navbar .dropdown-item-text {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+.navbar .btn-outline-light {
+    margin-left: 0.5rem;
+}
+.navbar .icon {
+    font-size: 1.2rem;
+}
