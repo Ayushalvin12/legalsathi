@@ -12,7 +12,7 @@
 </head>
 <body>
     <nav class="navbar navbar-light bg-dark" role="navigation" aria-label="Main navigation">
-        <a class="navbar-brand" href="#">LegalSathi</a>
+        <a class="navbar-brand" href="http://127.0.0.1:8000/">LegalSathi</a>
         <div class="d-flex align-items-center">
             <button id="dark-mode-toggle" aria-label="Toggle dark mode" class="dark-mode-toggle btn btn-outline-light mr-2">
                 <span class="icon">🌙</span>
@@ -218,11 +218,7 @@
             messageDiv.innerHTML = `
                 <div class="avatar">${avatar}</div>
                 <div class="content">${content}</div>
-                <div class="timestamp">${timestamp}</div>
-                <div class="reactions">
-                    <button class="reaction-btn" aria-label="Add thumbs up reaction">👍</button>
-                    <button class="reaction-btn" aria-label="Add heart reaction">❤️</button>
-                </div>
+                <div class="timestamp">${timestamp}</div> 
             `;
             messagesDiv.appendChild(messageDiv);
             if (wasAtBottom) scrollToBottom();

@@ -18,7 +18,6 @@ COLLECTION_MAP: Dict[str, str] = {
     "criminal": "criminal_code",
     "civil": "civil_code",
     "labour": "labour_act",
-    "constitution": "constitution_law",
 }
 
 # === Domain-specific keywords ===
@@ -60,7 +59,7 @@ def classify_query_domain(query: str) -> str:
     return "criminal"  # Default fallback
 
 
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "tinyllama:1.1b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
 
 
 def classify_with_ollama(prompt: str, model: str = OLLAMA_MODEL) -> str:
@@ -92,7 +91,6 @@ def build_domain_prompt(user_query: str, history: Optional[list[BaseMessage]]) -
     - criminal
     - civil
     - labour
-    - constitution
 
     Use the full context of the conversation to classify the CURRENT QUESTION into exactly one domain.
 
@@ -113,7 +111,7 @@ def classify_query_domain_llama(
     response = classify_with_ollama(prompt)
 
     domain = response.lower().split()[0]
-    if domain not in {"criminal", "civil", "labour", "constitution"}:
+    if domain not in {"criminal", "civil", "labour"}:
         logger.info(f"Ollama raw domain response: '{response}'")
         logger.warning(
             f"Ollama returned unknown domain '{domain}', defaulting to 'criminal'"

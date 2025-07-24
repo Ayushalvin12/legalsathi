@@ -7,7 +7,7 @@ from starlette.responses import RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 import os
-from db import get_db_cursor
+from auth.db import get_db_cursor
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from pathlib import Path
@@ -85,6 +85,12 @@ async def signup(request: Request, redirected: bool = False):
         {"request": request, "redirected": redirected}
     )
 
+# route to questios page
+@app.get("/questions", response_class=HTMLResponse)
+async def home(request: Request):
+    user_info = request.session.get("user")
+    return templates.TemplateResponse("questions.html", {"request": request, "user": user_info})
+
 @app.get("/signin", response_class=HTMLResponse)
 async def home(request: Request):
     user_info = request.session.get("user")
@@ -117,7 +123,7 @@ async def chatapp(request: Request):
 @app.get("/auth")
 async def login(request: Request):
     redirect_uri = 'http://127.0.0.1:8000/auth/callback'
-    response = await oauth.google.authorize_redirect(request, redirect_uri)
+    response = await oauth.google.authorize_redirect(request, redirect_uri, prompt="select_account")
     print(f"Session after login: {request.session}")
     return response
 
