@@ -124,7 +124,7 @@ def retrieve_routed_context(
     client: QdrantClient,
     user_query: str,
     history: Optional[list[BaseMessage]] = None,
-    top_k: int = 5,
+    top_k: int = 8,
 ):
     try:
         domain = classify_query_domain_llama(user_query, history)

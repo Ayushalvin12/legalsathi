@@ -422,7 +422,11 @@
             <div class="nav-links">
                 <a href="/questions">Questions you may ask</a>
                 <a href="#about">About Us</a>
-                <a href="/signin">Login</a>
+                {% if user %}
+                    <a href="/logout">Logout</a>
+                {% else %}
+                    <a href="/signin">Login</a>
+                {% endif %}
             </div>
         </div>
         

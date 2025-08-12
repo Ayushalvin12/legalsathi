@@ -36,8 +36,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
 COLLECTION_NAME = "labour_act"
-OLLAMA_MODEL = "tinyllama:1.1b"
-TOP_K = 5
+OLLAMA_MODEL = "llama3.1:latest"
+TOP_K = 4
 
 # Load tokenizer
 tokenizer = AutoTokenizer.from_pretrained("hf-internal-testing/llama-tokenizer")
