@@ -171,7 +171,7 @@
             displayMessage('user', message, new Date().toLocaleTimeString());
             messageInput.value = '';
             messageInput.style.height = 'auto';
-            showLoadingIndicator();
+            showTypingIndicator();
 
             const payload = {
                 user_query: message,
@@ -194,7 +194,7 @@
                 return response.json();
             })
             .then(data => {
-                hideLoadingIndicator();
+                hideTypingIndicator();
                 if (!currentConversationId && data.conversation_id) {
                     currentConversationId = data.conversation_id;
                     fetchConversations(data.conversation_id);
@@ -202,7 +202,7 @@
                 displayMessage('ai', data.answer, new Date().toLocaleTimeString());
             })
             .catch(error => {
-                hideLoadingIndicator();
+                hideTypingIndicator();
                 displayMessage('ai', `Error: ${error.message}`, new Date().toLocaleTimeString());
             });
         }
@@ -229,22 +229,31 @@
             const messagesDiv = document.getElementById('messages');
             return messagesDiv.scrollHeight - messagesDiv.scrollTop <= messagesDiv.clientHeight + 10;
         }
+        let typingIndicator = null;
+        // Show typing indicator
+        function showTypingIndicator() {
+            // Remove previous if any
+            if (typingIndicator) typingIndicator.remove();
 
-        // Show loading indicator
-        function showLoadingIndicator() {
-            const loader = document.createElement('div');
-            loader.className = 'loading';
-            loader.innerHTML = '<div class="loading-spinner" role="status"><span class="sr-only">Loading...</span></div>';
-            document.getElementById('messages').appendChild(loader);
+            typingIndicator = document.createElement('div');
+            typingIndicator.className = 'typing-indicator';
+            typingIndicator.innerHTML = `
+                <span>Fetching relevant legal information</span>
+                <span class="dots">
+                    <span>.</span><span>.</span><span>.</span><span>.</span>
+                </span>
+            `;
+            document.getElementById('messages').appendChild(typingIndicator);
             scrollToBottom();
         }
-
-        // Hide loading indicator
-        function hideLoadingIndicator() {
-            const loader = document.querySelector('.loading');
-            if (loader) loader.remove();
+        // Hide typing indicator
+        function hideTypingIndicator() {
+            if (typingIndicator) {
+                typingIndicator.remove();
+                typingIndicator = null;
+            }
         }
-
+        
         // Scroll to bottom of messages
         function scrollToBottom() {
             const messagesDiv = document.getElementById('messages');

@@ -51,12 +51,12 @@ DOMAIN_KEYWORDS: Dict[str, list[str]] = {
 }
 
 
-def classify_query_domain(query: str) -> str:
-    query_lower = query.lower()
-    for domain, keywords in DOMAIN_KEYWORDS.items():
-        if any(keyword in query_lower for keyword in keywords):
-            return domain
-    return "criminal"  # Default fallback
+# def classify_query_domain(query: str) -> str:
+#     query_lower = query.lower()
+#     for domain, keywords in DOMAIN_KEYWORDS.items():
+#         if any(keyword in query_lower for keyword in keywords):
+#             return domain
+#     return "criminal"  # Default fallback
 
 
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
@@ -124,7 +124,7 @@ def retrieve_routed_context(
     client: QdrantClient,
     user_query: str,
     history: Optional[list[BaseMessage]] = None,
-    top_k: int = 8,
+    top_k: int = 5,
 ):
     try:
         domain = classify_query_domain_llama(user_query, history)
@@ -146,13 +146,15 @@ def retrieve_routed_context(
             logger.error(" Embedding failed or returned invalid format.")
             return []
 
-        return client.search(
+        context = client.search(
             collection_name=collection,
             query_vector=query_vector,
             limit=top_k,
             with_payload=True,
         )
-
+        logger.info(f"context: {context}")
+        return context
+    
     except Exception as e:
         logger.error(f"Retrieval failed for user query '{user_query}': {e}")
         return []

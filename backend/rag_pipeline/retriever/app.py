@@ -35,9 +35,9 @@ logger = get_logger()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
-COLLECTION_NAME = "labour_act"
+# COLLECTION_NAME = "labour_act"
 OLLAMA_MODEL = "llama3.1:latest"
-TOP_K = 4
+
 
 # Load tokenizer
 tokenizer = AutoTokenizer.from_pretrained("hf-internal-testing/llama-tokenizer")
@@ -71,6 +71,7 @@ def generate_with_ollama(prompt, model=OLLAMA_MODEL):
         url, json={"model": model, "prompt": prompt, "stream": False}
     )
     if response.status_code == 200:
+        logger.info(response.json()["response"])
         return response.json()["response"].strip()
     else:
         raise RuntimeError(f"Ollama error: {response.text}")
@@ -97,6 +98,15 @@ def generate_answer(context_chunks, user_query, chat_history):
         If user asks follow up questions maintain a conversation using the the chat history 
         provided below.
 
+        Provide the answer in clean HTML with:
+        - <h3> for headings
+        - <ul><li> for bullet points
+        - <b> for key terms
+        - <p> for paragraphs
+        - Spacing between sections using separate <p> tags
+
+        Do NOT output Markdown or plain text. Only HTML tags.
+
         ### Chat History ###
         {history_text.strip()}
 
@@ -107,6 +117,7 @@ def generate_answer(context_chunks, user_query, chat_history):
         Answer:"""
 
     return generate_with_ollama(prompt)
+
 
 
 def save_memory_as_json(memory, log_dir="logs"):
@@ -134,11 +145,14 @@ def save_memory_as_json(memory, log_dir="logs"):
 reranker = MxbaiRerankV2("mixedbread-ai/mxbai-rerank-base-v2", max_length=8192)
 
 
-def rerank_results_v2(query: str, hits: list, text_key="content"):
+def rerank_results_v2(query: str, hits: list, text_key="content", TOP_K=3):
     docs = [hit.payload[text_key] for hit in hits]
     results = reranker.rank(query=query, documents=docs, return_documents=False)
     scored = [(hits[result.index], result.score) for result in results]
     scored.sort(key=lambda x: x[1], reverse=True)
+    if TOP_K is not None:
+        logger.info(f"Reranked contexts {scored[:TOP_K]}")
+        return scored[:TOP_K]
     return scored
 
 
@@ -258,6 +272,7 @@ async def delete_conversation(conversation_id: int):
 async def chat_endpoint(request: QueryRequest):
     try:
         user_query = request.user_query.strip()
+        logger.info(f"Removing extra spaces from the users query{user_query}")
         if not user_query:
             raise HTTPException(status_code=400, detail="Empty query")
 
@@ -271,6 +286,9 @@ async def chat_endpoint(request: QueryRequest):
                 )
                 conversation_id = cur.fetchone()[0]
                 db_conn.commit()
+            logger.info(f"New conversation_id created: {conversation_id}")
+        else:
+            logger.info(f"Using existing conversation_id: {conversation_id}")
 
         history = memory.chat_memory.messages
         context = retrieve_routed_context(qdrant_client, user_query, history=history)
@@ -278,6 +296,7 @@ async def chat_endpoint(request: QueryRequest):
             return {"answer": None, "message": "No relevant context found."}
 
         reranked = rerank_results_v2(user_query, context, text_key="content")
+
         answer = generate_answer(reranked, user_query, history)
 
         save_turn_to_memory_and_db(memory, db_conn, conversation_id, user_query, answer)
