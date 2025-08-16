@@ -6,7 +6,7 @@ def connect_db():
         conn = psycopg2.connect(
             dbname="legalsathi",
             user="postgres",
-            password=os.getenv("DATABASE_PASSWORD"),
+            password="superuser",
             host="localhost",
             port="5432"
         )

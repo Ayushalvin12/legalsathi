@@ -1,36 +1,44 @@
 import os
-import tempfile
 from datetime import datetime
+from pathlib import Path
 
-from chunks import chunk_legal_sections
-from data_embedding import (
+from .chunks import chunk_legal_sections
+from .data_embedding import (
     connect_qdrant,
     embed_with_gemini,
     load_embedder_gemini,
     upload_chunks,
 )
 from dotenv import load_dotenv
-from extractor import extract_from_pdf
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile, status
+from .extractor import extract_from_pdf
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status, Depends
 from rag_pipeline.logger_config import get_logger
+from auth.routes import get_current_user
 
-load_dotenv()
+from .db import connect_db
+
+load_dotenv(dotenv_path="E:/legal_sathi/backend/.env")
 logger = get_logger(__name__)
 
-app = FastAPI()
+router = APIRouter()
 
 
-@app.get("/")
+@router.get("/")
 async def root():
     return {"message": "Health-check!"}
 
+# Directory for storing PDFs
+UPLOAD_DIR = Path("uploaded_pdfs")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-@app.post("/upload-pdf/")
+@router.post("/upload-pdf/")
 async def upload_pdf(
     file: UploadFile = File(...),
     save_extract: bool = Query(False, description="Save extracted JSON"),
     save_chunks: bool = Query(False, description="Save chunked JSON"),
+    current_user: dict = Depends(get_current_user),
 ):
+    user_id = current_user["id"]
     """
     Upload a PDF file for processing.
 
@@ -45,6 +53,11 @@ async def upload_pdf(
     # Validation for output paths if write_outputs is True
     filename_base = os.path.splitext(file.filename)[0]
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Save dir for PDFs
+    pdf_dir = os.path.join(os.getcwd(), "uploaded_pdfs")
+    os.makedirs(pdf_dir, exist_ok=True)
+
     output_dir = os.path.join(os.getcwd(), "saved_outputs")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -58,8 +71,9 @@ async def upload_pdf(
         if save_chunks
         else None
     )
+    pdf_file_path = os.path.join(pdf_dir, f"{filename_base}_{timestamp}.pdf")
 
-    temp_file_path = None
+
     try:
         max_file_size = 10 * 1024 * 1024  # 10MB
         # Save the uploaded PDF to a temporary file
@@ -70,13 +84,32 @@ async def upload_pdf(
                 detail="File size exceeds 10MB limit",
             )
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-            temp_file.write(content)
-            temp_file_path = temp_file.name
+         # Save file permanently
+        with open(pdf_file_path, "wb") as f:
+            f.write(content)
+
+        logger.info(f"PDF saved to {pdf_file_path}")
+
+        # --- INSERT INTO POSTGRESQL ---
+        conn = connect_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO documents (user_id, filename, filepath, uploaded_at)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id;
+            """,
+            (user_id, file.filename, pdf_file_path, datetime.now())
+        )
+        document_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info(f"Inserted document metadata into DB with ID={document_id}")
 
         # Step 1: Extract structured content from the PDF
         logger.info(f"Extracting structured content from PDF...{file.filename}")
-        data = extract_from_pdf(temp_file_path, output_path=extracted_path)
+        data = extract_from_pdf(pdf_file_path, output_path=extracted_path)
         if not data:
             logger.error("Failed to extract data.")
             return {"error": "Failed to extract data"}
@@ -112,7 +145,12 @@ async def upload_pdf(
         upload_chunks(client, collection, chunks)
 
         logger.info("All done!")
-        return {"status": "success", "chunks_uploaded": len(chunks)}
+        return {
+            "status": "success", 
+            "document_id": document_id,
+            "chunks_uploaded": len(chunks),
+            "file_path": pdf_file_path
+            }
 
     except Exception as e:
         logger.error(f"Error during processing: {e}")
@@ -120,7 +158,3 @@ async def upload_pdf(
             status_code=500, detail=f"Processing error: {str(e)}"
         ) from e
 
-    finally:
-        # Clean up the temporary file
-        if temp_file_path and os.path.exists(temp_file_path):
-            os.remove(temp_file_path)

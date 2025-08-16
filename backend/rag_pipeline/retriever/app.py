@@ -28,7 +28,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 # === Load environment & setup logger ===
-load_dotenv()
+load_dotenv(dotenv_path="E:/legal_sathi/backend/.env")
 logger = get_logger()
 
 # === Config ===

@@ -1,7 +1,7 @@
 import os
 import traceback
 import pdfplumber
-from patterns import (
+from .patterns import (
     chapter_pattern,
     metadata_key_pattern,
     metadata_pattern,
@@ -13,7 +13,7 @@ from patterns import (
     subclause_pattern,
     subsection_pattern,
 )
-from utils import flush_section, is_title_complete, reset_state, write_output
+from .utils import flush_section, is_title_complete, reset_state, write_output
 
 
 def extract_from_pdf(pdf_path, output_path=None):
