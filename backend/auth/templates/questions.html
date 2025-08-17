@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Areas We Cover - Legal Sathi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #4b5563, rgb(178, 127, 100));
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.6;
+            padding-top: 80px; /* Add padding to prevent navbar overlap */
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            color: rgba(255,255,255,0.9);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Navigation */
+        .navbar {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 1rem 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 1000;
+            transition: all 0.3s ease;
+            height: 80px; /* Define navbar height */
+            display: flex;
+            align-items: center;
+        }
+
+        .nav-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #fff;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: transform 0.3s ease;
+        }
+
+        .logo:hover {
+            transform: scale(1.05);
+        }
+
+        .logo::before {
+            content: "⚖️";
+            font-size: 1.5rem;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-links a {
+            color: #fff;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-links a::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .nav-links a:hover::before {
+            left: 100%;
+        }
+
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .legal-areas {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .area-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .area-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .area-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #4b5563, rgb(178, 127, 100));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .area-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 1rem;
+        }
+
+        .area-description {
+            color: #4a5568;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        .example-questions {
+            margin-top: 1.5rem;
+        }
+
+        .example-questions h4 {
+            color: #2d3748;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .question-list {
+            list-style: none;
+        }
+
+        .question-item {
+            background: rgba(75, 85, 99, 0.1);
+            margin-bottom: 0.5rem;
+            padding: 0.8rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            font-size: 0.9rem;
+        }
+
+        .question-item:hover {
+            background: rgba(75, 85, 99, 0.15);
+            border-left-color: #4b5563;
+            transform: translateX(5px);
+        }
+
+        .cta-section {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 2.5rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            animation: fadeIn 1s ease-out;
+        }
+
+        .cta-section h2 {
+            color: white;
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .cta-section p {
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #4b5563, rgb(178, 127, 100));
+            color: white;
+            padding: 1rem 2rem;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 2rem 0;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            text-align: center;
+            color: white;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding-top: 70px; /* Adjust for smaller navbar on mobile */
+            }
+
+            .navbar {
+                height: 70px; /* Smaller navbar height on mobile */
+                padding: 0.8rem 1rem;
+            }
+
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .legal-areas {
+                grid-template-columns: 1fr;
+            }
+            
+            .area-card {
+                padding: 1.5rem;
+            }
+            
+            .stats {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .nav-links {
+                gap: 1rem;
+            }
+
+            .nav-links a {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.9rem;
+            }
+
+            .logo {
+                font-size: 1.5rem;
+            }
+        }
+
+        /* Mobile menu toggle for very small screens */
+        @media (max-width: 480px) {
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                width: 100%;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(20px);
+                flex-direction: column;
+                padding: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
+            }
+
+            .nav-links.active {
+                display: flex;
+            }
+
+            .mobile-menu-toggle {
+                display: block;
+                background: none;
+                border: none;
+                color: white;
+                font-size: 1.5rem;
+                cursor: pointer;
+            }
+        }
+
+        .mobile-menu-toggle {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-content">
+            <a href="http://127.0.0.1:8000/" class="logo">Legalsathi</a>
+            <div class="nav-links">
+                <a href="/questions">Questions you may ask</a>
+                <a href="#about">About Us</a>
+                {% if user %}
+                    <a href="/logout">Logout</a>
+                {% else %}
+                    <a href="/signin">Login</a>
+                {% endif %}
+            </div>
+            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">☰</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="header">
+            <h1>Legal Areas We Cover</h1>
+            <p>Comprehensive legal guidance across multiple practice areas. Try our AI-powered chatbot with these sample questions.</p>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-number">3</span>
+                    <span class="stat-label">Major Practice Areas</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">24/7</span>
+                    <span class="stat-label">Available Support</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">100+</span>
+                    <span class="stat-label">Common Questions Covered</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="legal-areas">
+            <div class="area-card">
+                <div class="area-icon">⚖️</div>
+                <h3 class="area-title">Criminal Law</h3>
+                <p class="area-description">
+                    Expert guidance on criminal matters including arrests, charges, bail procedures, and defense strategies. We help you understand your rights and legal options.
+                </p>
+                
+                <div class="example-questions">
+                    <h4>💬 Try asking:</h4>
+                    <ul class="question-list">
+                        <li class="question-item">"What is the punishment for someone who uses a child or other person to beg?"</li>
+                        <li class="question-item">"What does the law say about reckless use of explosives or flammable substances?"</li>
+                        <li class="question-item">"What penalties are prescribed for engaging in sexual intercourse in a public place"</li>
+                        <li class="question-item">"What are the penalties for gambling or causing others to gamble"</li>
+                        <li class="question-item">"What is the punishment for using the fake currency?"</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="area-card">
+                <div class="area-icon">🏛️</div>
+                <h3 class="area-title">Civil Law</h3>
+                <p class="area-description">
+                    Comprehensive support for civil disputes, property matters, contracts, family issues, and personal injury cases. Get clarity on your civil legal matters.
+                </p>
+                
+                <div class="example-questions">
+                    <h4>💬 Try asking:</h4>
+                    <ul class="question-list">
+                        <li class="question-item">"Is it necessary to leave space while building windows or doors towards a neighbors land?"</li>
+                        <li class="question-item">"how many weeks of maternity leave is a pregnant women entitled?"</li>
+                        <li class="question-item">"What is the legal process for divorce"</li>
+                        <li class="question-item">"Can a person cultivate or use someone else's land without their permission?"</li>
+                        <li class="question-item">"How much space must be left while digging a well or kuwa (small well)?"</li>
+                        <li class="question-item">"What if someone else transfers a property in my name to other without my consent?"</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="area-card">
+                <div class="area-icon">🤝</div>
+                <h3 class="area-title">Labour Law</h3>
+                <p class="area-description">
+                    Specialized assistance for employment-related issues, workplace rights, wage disputes, termination matters, and industrial relations.
+                </p>
+                
+                <div class="example-questions">
+                    <h4>💬 Try asking:</h4>
+                    <ul class="question-list">
+                        <li class="question-item">"what is the law related to provident fund for employees?"</li>
+                        <li class="question-item">"How many types employment in mentioned in labaour law?"</li>
+                        <li class="question-item">"Can my employer change my job role without consent?"</li>
+                        <li class="question-item">"What are the rules for overtime payment?"</li>
+                        <li class="question-item">"How to file a complaint for workplace harassment?"</li>
+                        <li class="question-item">"Is weekly leave mandatory for labourers?"</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="cta-section">
+            <h2>Ready to Get Legal Help?</h2>
+            <p>Start chatting with Legal Sathi now! Simply click any of the example questions above or ask your own legal question.</p>
+            <a href="/chatapp" class="cta-button" onclick="startChat()">Start Chatting Now</a>
+        </div>
+    </div>
+
+    <script>
+        // Add click functionality to question items
+        document.querySelectorAll('.question-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const question = this.textContent.replace(/"/g, '');
+                startChatWithQuestion(question);
+            });
+        });
+
+        // Mobile menu toggle function
+        function toggleMobileMenu() {
+            const navLinks = document.querySelector('.nav-links');
+            navLinks.classList.toggle('active');
+        }
+
+        // Add scroll animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.animationDelay = Math.random() * 0.3 + 's';
+                    entry.target.style.animationPlayState = 'running';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.area-card').forEach(card => {
+            card.style.animationPlayState = 'paused';
+            observer.observe(card);
+        });
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const navLinks = document.querySelector('.nav-links');
+            const menuToggle = document.querySelector('.mobile-menu-toggle');
+            
+            if (!navLinks.contains(event.target) && !menuToggle.contains(event.target)) {
+                navLinks.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
